@@ -1,0 +1,9 @@
+requests==2.31.0
+python-dotenv==1.0.1
+tqdm==4.66.2
+Pillow
+torch
+torchvision
+# Dependências pesadas (numpy, rasterio) removidas temporariamente.
+# O Windows encontra dificuldades para instalar bibliotecas C-based
+# quando o caminho do diretório possui acentos (Implementação).
