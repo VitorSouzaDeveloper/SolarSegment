@@ -268,6 +268,44 @@ input[type="range"]::-webkit-slider-thumb:hover {
     border-radius: var(--radius-md);
 }
 
+.range-val-input {
+    font-family: monospace;
+    font-size: 0.85rem;
+    width: 80px;
+    text-align: right;
+    color: var(--solar);
+    background: rgba(251, 191, 36, 0.05);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    padding: 0.2rem 0.4rem;
+    border-radius: var(--radius-md);
+    outline: none;
+    transition: var(--transition);
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+}
+
+.range-val-input::-webkit-outer-spin-button,
+.range-val-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.range-val-input:focus {
+    border-color: var(--solar);
+    box-shadow: 0 0 5px var(--solar-glow);
+}
+
+.input-unit-container {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.unit-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
 .quick-presets {
     display: flex;
     gap: 0.5rem;

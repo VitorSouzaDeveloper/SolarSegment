@@ -19,7 +19,7 @@ from torchvision.transforms import v2
 
 def calculate_power_estimation(total_pixels, gsd):
     """
-    Realiza o cálculo do modelo matemático da Seção 3.3.
+    Realiza o cálculo do modelo matemático da Seção 3.3 de forma fisicamente e academicamente correta.
     """
     # 1. Área Total (A_total) em m²
     # Cada pixel representa (gsd * gsd) metros quadrados
@@ -30,14 +30,22 @@ def calculate_power_estimation(total_pixels, gsd):
     # Eficiência (η) média comercial (18.5%)
     eta = 0.185
     
-    # Índice de Irradiação Solar (I_local) para Dourados - MS
-    # Média já existente e calculada (aprox 5.4 kWh/m²/dia)
+    # Índice de Irradiação Solar (I_local) para Dourados - MS (aprox 5.4 kWh/m²/dia)
     i_local = 5.4
     
-    # Modelo Matemático: Pest = Atotal * η * Ilocal
-    p_est = a_total * eta * i_local
+    # Performance Ratio (PR) - Perdas padrão do sistema (75%)
+    pr = 0.75
     
-    return a_total, p_est
+    # Potência Pico Instalada (kWp) = Area (m2) * Eficiência (eta) * Irradiância STC (1 kW/m2)
+    p_pico = a_total * eta
+    
+    # Geração Diária de Energia (kWh/dia)
+    e_diaria = p_pico * i_local * pr
+    
+    # Geração Anual de Energia (kWh/ano)
+    e_anual = e_diaria * 365
+    
+    return a_total, p_pico, e_diaria, e_anual
 
 def calculate_estimation_errors(estimated, true_val):
     """
@@ -152,16 +160,19 @@ def inference_and_estimation():
     print(f"Total de Pixels Classificados como 'Painel Solar': {total_solar_pixels}")
     
     # Cálculos Matemáticos (Seção 3.3)
-    a_total, p_est = calculate_power_estimation(total_solar_pixels, gsd)
+    a_total, p_pico, e_diaria, e_anual = calculate_power_estimation(total_solar_pixels, gsd)
     
     print("-" * 50)
-    print("RELATÓRIO DE ESTIMATIVA DE POTÊNCIA (Seção 3.3)")
+    print("RELATÓRIO DE ESTIMATIVA DE POTÊNCIA E GERAÇÃO (Seção 3.3)")
     print("-" * 50)
     print(f"Área Total Identificada (A_total): {a_total:.2f} m²")
     print(f"Eficiência Adotada (eta): 18.5%")
     print(f"Índice de Irradiação (I_local): 5.4 kWh/m²/dia")
+    print(f"Performance Ratio (PR) Adotado: 75.0%")
     print("-" * 50)
-    print(f"POTÊNCIA MÉDIA DE GERAÇÃO ESTIMADA (P_est): {p_est:.2f} kW")
+    print(f"POTÊNCIA PICO INSTALADA ESTIMADA (P_pico): {p_pico:.2f} kWp")
+    print(f"GERAÇÃO DIÁRIA ESTIMADA (E_diaria): {e_diaria:.2f} kWh/dia")
+    print(f"GERAÇÃO ANUAL ESTIMADA (E_anual): {e_anual:.2f} kWh/ano")
     print("-" * 50)
 
     # =========================================================
@@ -186,12 +197,12 @@ def inference_and_estimation():
             print(f"RMSE: {rmse_area:.2f} m²\n")
             
         if real_power is not None:
-            mae_pwr, mape_pwr, rmse_pwr = calculate_estimation_errors(p_est, real_power)
-            print(f"--- Potência / Energia ---")
-            print(f"Estimado: {p_est:.2f} kW | Real: {real_power:.2f} kW")
-            print(f"MAE (Erro Absoluto): {mae_pwr:.2f} kW")
+            mae_pwr, mape_pwr, rmse_pwr = calculate_estimation_errors(p_pico, real_power)
+            print(f"--- Potência de Pico ---")
+            print(f"Estimado: {p_pico:.2f} kWp | Real: {real_power:.2f} kWp")
+            print(f"MAE (Erro Absoluto): {mae_pwr:.2f} kWp")
             print(f"MAPE (Erro Percentual): {mape_pwr:.2f}%")
-            print(f"RMSE: {rmse_pwr:.2f} kW")
+            print(f"RMSE: {rmse_pwr:.2f} kWp")
         print("=" * 50)
 
 if __name__ == "__main__":

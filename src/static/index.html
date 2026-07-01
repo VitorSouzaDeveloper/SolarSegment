@@ -47,8 +47,11 @@
                                 <span class="info-tooltip" title="Ground Sample Distance: Quantos metros reais cada pixel da imagem representa. Ex: 0.0389 = 3.89 cm/pixel (Ortofoto de Dourados MS)"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
-                                <input type="range" id="gsd" name="gsd" min="0.01" max="0.5" step="0.0001" value="0.0389">
-                                <span class="range-val" id="gsd-val">0.0389 m</span>
+                                <input type="range" id="gsd" min="0.01" max="0.5" step="0.0001" value="0.0389">
+                                <div class="input-unit-container">
+                                    <input type="number" id="gsd-val-input" name="gsd" min="0.0001" max="5.0" step="0.0001" value="0.0389" class="range-val-input">
+                                    <span class="unit-label">m</span>
+                                </div>
                             </div>
                             <div class="quick-presets">
                                 <button type="button" class="preset-btn" data-value="0.0389">Ortofoto (3.89 cm)</button>
@@ -80,6 +83,17 @@
                             <div class="range-container">
                                 <input type="range" id="i_local" name="i_local" min="3.0" max="7.0" step="0.1" value="5.4">
                                 <span class="range-val" id="i_local-val">5.4 kWh/m²</span>
+                            </div>
+                        </div>
+
+                        <div class="form-control">
+                            <label for="pr">
+                                Taxa de Desempenho (PR)
+                                <span class="info-tooltip" title="Performance Ratio: Perdas acumuladas do sistema (sujeira, cabos, temperatura, eficiência do inversor). Padrão de literatura: 70% a 80% (Padrão: 75%)"><i class="fa-solid fa-circle-info"></i></span>
+                            </label>
+                            <div class="range-container">
+                                <input type="range" id="pr" name="pr" min="0.50" max="0.90" step="0.01" value="0.75">
+                                <span class="range-val" id="pr-val">75.0 %</span>
                             </div>
                         </div>
                     </div>
@@ -205,9 +219,9 @@
                     <div class="metric-card cyan-glow">
                         <div class="metric-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
                         <div class="metric-info">
-                            <span class="metric-title">Potência Nominal Est.</span>
-                            <h3 class="metric-value"><span id="metric-power">0.00</span> <small>kW</small></h3>
-                            <span class="metric-subtitle">P<sub>est</sub> = A<sub>total</sub> × η × I<sub>local</sub></span>
+                            <span class="metric-title">Potência Pico Est.</span>
+                            <h3 class="metric-value"><span id="metric-power">0.00</span> <small>kWp</small></h3>
+                            <span class="metric-subtitle">P<sub>pico</sub> = A<sub>total</sub> × η × (1 kW/m²)</span>
                         </div>
                     </div>
 
@@ -216,7 +230,7 @@
                         <div class="metric-info">
                             <span class="metric-title">Geração Anual Estimada</span>
                             <h3 class="metric-value"><span id="metric-annual">0.00</span> <small>kWh</small></h3>
-                            <span class="metric-subtitle">Geração Média: <span id="metric-daily">0.00</span> kWh/dia</span>
+                            <span class="metric-subtitle">Geração: <span id="metric-daily">0.00</span> kWh/dia (PR: <span id="metric-pr-val-ref">75</span>%)</span>
                         </div>
                     </div>
 

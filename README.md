@@ -119,11 +119,25 @@ Para simplificar a visualização do pipeline e possibilitar o upload dinâmico 
 
 ## 📐 Modelo Matemático Adotado
 
-A estimativa da capacidade de geração fotovoltaica é feita aplicando a seguinte equação sobre os pixels detectados:
+Para garantir o rigor físico e acadêmico no TCC, a modelagem foi estruturada distinguindo a **Potência Instalada (Pico)** da **Geração de Energia Real** (considerando perdas do sistema):
 
-$$P_{est} = A_{total} \times \eta \times I_{local}$$
+### 1. Potência de Pico Instalada ($P_{pico}$)
+Representa a capacidade máxima nominal instalada sob Condições Padrão de Teste (STC, irradiação de $1 \text{ kW/m²}$):
+
+$$P_{pico} (kWp) = A_{total} \times \eta$$
+
+### 2. Geração Diária de Energia ($E_{diaria}$)
+Calcula a geração real média diária de energia em $kWh$, introduzindo a **Taxa de Desempenho ($PR$ - Performance Ratio)** para computar perdas reais (temperatura, cabeamento, sujeira e eficiência do inversor):
+
+$$E_{diaria} (kWh/dia) = P_{pico} \times I_{local} \times PR$$
+
+### 3. Geração Anual de Energia ($E_{anual}$)
+Estima a geração acumulada ao longo de um ano comercial:
+
+$$E_{anual} (kWh/ano) = E_{diaria} \times 365$$
 
 Onde:
-* $A_{total} = \text{Pixels classificados como painel} \times \text{GSD}^2$ (Área em $m^2$).
-* $\eta$: Eficiência média nominal comercial dos módulos fotovoltaicos (padrão: $18.5\%$).
-* $I_{local}$: Média de irradiação diária do município de Dourados-MS ($5.4 \text{ kWh/m²/dia}$).
+* $A_{total} = \text{Pixels de Painel} \times \text{GSD}^2$ (Área em $m^2$).
+* $\eta$: Eficiência média nominal dos módulos fotovoltaicos (padrão: $18.5\%$).
+* $I_{local}$: Média de irradiação diária da localidade (padrão: $5.4 \text{ kWh/m²/dia}$ para Dourados-MS).
+* $PR$: Performance Ratio (Perdas acumuladas). Padrão de literatura e mercado de $75\%$ ($0.75$).

@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Parâmetros da UI
-    const gsdInput = document.getElementById('gsd');
-    const gsdVal = document.getElementById('gsd-val');
+    const gsdSlider = document.getElementById('gsd');
+    const gsdInput = document.getElementById('gsd-val-input');
     const etaInput = document.getElementById('eta');
     const etaVal = document.getElementById('eta-val');
     const iLocalInput = document.getElementById('i_local');
@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const minAreaInput = document.getElementById('min_area');
     const minAreaVal = document.getElementById('min_area-val');
     const overlapInput = document.getElementById('overlap');
+    const prInput = document.getElementById('pr');
+    const prVal = document.getElementById('pr-val');
     
     // Preset Buttons
     const presetBtns = document.querySelectorAll('.preset-btn');
@@ -70,17 +72,30 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFile = null;
 
     // --- 1. Sincronização dos Sliders e Valores ---
+    // Sincroniza slider -> campo numérico
+    gsdSlider.addEventListener('input', () => {
+        gsdInput.value = parseFloat(gsdSlider.value).toFixed(4);
+        updatePresetActive(gsdSlider.value);
+    });
+
+    // Sincroniza campo numérico -> slider
     gsdInput.addEventListener('input', () => {
-        gsdVal.textContent = parseFloat(gsdInput.value).toFixed(4) + ' m';
-        // Remove active preset if not matching
+        const val = parseFloat(gsdInput.value);
+        if (!isNaN(val) && val >= 0.0001 && val <= 5.0) {
+            gsdSlider.value = val;
+            updatePresetActive(val);
+        }
+    });
+
+    function updatePresetActive(value) {
         presetBtns.forEach(btn => {
-            if (Math.abs(parseFloat(btn.dataset.value) - parseFloat(gsdInput.value)) < 0.001) {
+            if (Math.abs(parseFloat(btn.dataset.value) - parseFloat(value)) < 0.0001) {
                 btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
             }
         });
-    });
+    }
 
     etaInput.addEventListener('input', () => {
         etaVal.textContent = (parseFloat(etaInput.value) * 100).toFixed(1) + ' %';
@@ -96,6 +111,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     minAreaInput.addEventListener('input', () => {
         minAreaVal.textContent = minAreaInput.value + ' px';
+    });
+
+    prInput.addEventListener('input', () => {
+        prVal.textContent = (parseFloat(prInput.value) * 100).toFixed(1) + ' %';
     });
 
     // Preset click listeners
@@ -233,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('min_area', minAreaInput.value);
         formData.append('tile_size', '512');
         formData.append('overlap', overlapInput.checked);
+        formData.append('pr', prInput.value);
 
         const startTime = Date.now();
 
@@ -306,10 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. KPIs
         metricArea.textContent = data.results.area_total_m2.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         metricGsdRef.textContent = data.results.gsd.toFixed(4);
-        metricPower.textContent = data.results.potencia_estimada_kw.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        metricPower.textContent = data.results.potencia_pico_kwp.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         metricDaily.textContent = data.results.geracao_diaria_kwh.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         metricAnnual.textContent = data.results.geracao_anual_kwh.toLocaleString('pt-BR', { minimumFractionDigits: 0 });
         metricGroups.textContent = data.results.detected_groups;
+        document.getElementById('metric-pr-val-ref').textContent = (parseFloat(prInput.value) * 100).toFixed(0);
 
         // 2. Imagens
         resultOverlay.src = `data:image/jpeg;base64,${data.images.overlay_b64}`;

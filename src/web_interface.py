@@ -97,7 +97,8 @@ async def analyze(
     threshold: float = Form(0.55),
     min_area: int = Form(250),
     tile_size: int = Form(512),
-    overlap: bool = Form(False)
+    overlap: bool = Form(False),
+    pr: float = Form(0.75)
 ):
     try:
         # Carrega o modelo
@@ -239,13 +240,15 @@ async def analyze(
     final_num_labels, _, _, _ = cv2.connectedComponentsWithStats(pred_mask, connectivity=8)
     detected_panel_groups = max(0, final_num_labels - 1)
     
-    # Cálculos Matemáticos de Estimativa
+    # Cálculos Matemáticos de Estimativa (Academicamente Corretos)
     area_per_pixel = gsd * gsd
     a_total = total_solar_pixels * area_per_pixel
-    p_est = a_total * eta * i_local
     
-    # Geração diária em kWh/dia e geração anual em kWh/ano
-    generation_daily_kwh = a_total * eta * i_local
+    # Potência Pico Instalada (kWp) = Area (m2) * Eficiência (eta) * Irradiância STC (1 kW/m2)
+    p_pico = a_total * eta
+    
+    # Geração diária em kWh/dia = Potência Pico (kWp) * Irradiação local (kWh/m2/dia) * Performance Ratio (PR)
+    generation_daily_kwh = p_pico * i_local * pr
     generation_annual_kwh = generation_daily_kwh * 365
     
     # Cria a imagem de overlay final
@@ -277,17 +280,18 @@ async def analyze(
             "total_solar_pixels": total_solar_pixels,
             "gsd": gsd,
             "area_total_m2": round(a_total, 2),
-            "potencia_estimada_kw": round(p_est, 2),
+            "potencia_pico_kwp": round(p_pico, 2),
             "geracao_diaria_kwh": round(generation_daily_kwh, 2),
             "geracao_anual_kwh": round(generation_annual_kwh, 2),
-            "detected_groups": detected_panel_groups
+            "detected_groups": detected_panel_groups,
+            "pr": pr
         },
         "images": {
             "original_b64": orig_b64,
             "mask_b64": mask_b64,
             "overlay_b64": overlay_b64
         },
-        "results_text": f"Área de Painéis: {a_total:.2f} m² | Potência Média: {p_est:.2f} kW | Grupos Detectados: {detected_panel_groups}",
+        "results_text": f"Área de Painéis: {a_total:.2f} m² | Potência Pico: {p_pico:.2f} kWp | Grupos Detectados: {detected_panel_groups}",
         "tiles_gallery": detected_tiles_gallery
     }
 
