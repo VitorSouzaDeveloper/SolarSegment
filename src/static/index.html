@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pipeline de Visão Computacional - TCC II Solar</title>
+    <title>SolarSegment - Segmentação U-Net & Estimativa Fotovoltaica (TCC II)</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- FontAwesome para ícones premium -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -21,7 +21,7 @@
             </div>
             <div class="header-badge">
                 <span class="status-indicator online"></span>
-                <span>U-Net Pipeline v2.0</span>
+                <span>U-Net Pipeline v2.5 • TCC II</span>
             </div>
         </div>
     </header>
@@ -37,14 +37,14 @@
                 <hr class="divider">
                 
                 <form id="analyze-form">
-                    <!-- Configurações Espaciais -->
+                    <!-- Resolução Espacial -->
                     <div class="section-group">
                         <h3><i class="fa-solid fa-ruler-combined"></i> Resolução Espacial</h3>
                         
                         <div class="form-control">
                             <label for="gsd">
                                 GSD (Metros / Pixel) 
-                                <span class="info-tooltip" title="Ground Sample Distance: Quantos metros reais cada pixel da imagem representa. Ex: 0.0389 = 3.89 cm/pixel (Ortofoto de Dourados MS)"><i class="fa-solid fa-circle-info"></i></span>
+                                <span class="info-tooltip" title="Ground Sample Distance: Resolução no solo. Ex: 0.0389 = 3.89 cm/pixel (Ortofoto de Dourados-MS)"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
                                 <input type="range" id="gsd" min="0.01" max="0.5" step="0.0001" value="0.0389">
@@ -54,9 +54,47 @@
                                 </div>
                             </div>
                             <div class="quick-presets">
-                                <button type="button" class="preset-btn" data-value="0.0389">Ortofoto (3.89 cm)</button>
-                                <button type="button" class="preset-btn" data-value="0.2986">Zoom 19 Bing (29.8 cm)</button>
+                                <button type="button" class="preset-btn active" data-type="gsd" data-value="0.0389">Ortofoto (3.89 cm)</button>
+                                <button type="button" class="preset-btn" data-type="gsd" data-value="0.2986">Bing Z19 (29.8 cm)</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Geometria & Inclinação do Telhado -->
+                    <div class="section-group">
+                        <h3><i class="fa-solid fa-compass-drafting"></i> Geometria do Telhado</h3>
+                        
+                        <div class="form-control">
+                            <label for="tilt_angle">
+                                Inclinação do Telhado (β)
+                                <span class="info-tooltip" title="Ângulo de inclinação dos módulos/telhado em relação ao plano horizontal. Usado para corrigir a área ortogonal real (S_pv)."><i class="fa-solid fa-circle-info"></i></span>
+                            </label>
+                            <div class="range-container">
+                                <input type="range" id="tilt_angle" name="tilt_angle" min="0" max="60" step="1" value="20">
+                                <span class="range-val" id="tilt_angle-val">20 °</span>
+                            </div>
+                            <div class="quick-presets">
+                                <button type="button" class="preset-btn" data-type="tilt" data-value="0">Plano (0°)</button>
+                                <button type="button" class="preset-btn active" data-type="tilt" data-value="20">Residencial (20°)</button>
+                                <button type="button" class="preset-btn" data-type="tilt" data-value="22">Ideal MS (22°)</button>
+                            </div>
+                        </div>
+
+                        <div class="form-control">
+                            <label for="latitude">
+                                Latitude Local (φ)
+                                <span class="info-tooltip" title="Latitude geográfica para o modelo de correção de Jiao et al. (Padrão: -22.22° Dourados-MS)"><i class="fa-solid fa-circle-info"></i></span>
+                            </label>
+                            <input type="number" id="latitude" name="latitude" min="-90" max="90" step="0.01" value="-22.22" class="text-input-field">
+                        </div>
+
+                        <div class="form-control checkbox-control">
+                            <label for="use_tilt_correction">
+                                <input type="checkbox" id="use_tilt_correction" name="use_tilt_correction" checked>
+                                <span class="checkmark"></span>
+                                <strong>Correção Geométrica (S<sub>pv</sub>)</strong>
+                                <span class="info-tooltip" title="Aplica a equação de Jiao et al. (2022) para obter a área real do módulo inclinado a partir da ortofoto horizontal."><i class="fa-solid fa-circle-info"></i></span>
+                            </label>
                         </div>
                     </div>
 
@@ -67,7 +105,7 @@
                         <div class="form-control">
                             <label for="eta">
                                 Eficiência do Painel (η)
-                                <span class="info-tooltip" title="Eficiência nominal média do painel solar fotovoltaico (Padrão: 18.5%)"><i class="fa-solid fa-circle-info"></i></span>
+                                <span class="info-tooltip" title="Eficiência nominal média do módulo de silício monocristalino (Padrão: 18.5%)"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
                                 <input type="range" id="eta" name="eta" min="0.10" max="0.30" step="0.005" value="0.185">
@@ -78,7 +116,7 @@
                         <div class="form-control">
                             <label for="i_local">
                                 Irradiação Solar (I<sub>local</sub>)
-                                <span class="info-tooltip" title="Índice médio diário de irradiação solar na localidade em kWh/m²/dia (Padrão Dourados-MS: 5.4)"><i class="fa-solid fa-circle-info"></i></span>
+                                <span class="info-tooltip" title="Irradiação solar global diária média em kWh/m²/dia (Padrão Dourados-MS: 5.4)"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
                                 <input type="range" id="i_local" name="i_local" min="3.0" max="7.0" step="0.1" value="5.4">
@@ -89,7 +127,7 @@
                         <div class="form-control">
                             <label for="pr">
                                 Taxa de Desempenho (PR)
-                                <span class="info-tooltip" title="Performance Ratio: Perdas acumuladas do sistema (sujeira, cabos, temperatura, eficiência do inversor). Padrão de literatura: 70% a 80% (Padrão: 75%)"><i class="fa-solid fa-circle-info"></i></span>
+                                <span class="info-tooltip" title="Performance Ratio: Perdas do sistema (sujeira, cabos, inversores, temperatura). Literatura: 75%"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
                                 <input type="range" id="pr" name="pr" min="0.50" max="0.90" step="0.01" value="0.75">
@@ -100,12 +138,12 @@
 
                     <!-- Hiperparâmetros de Segmentação e Visão -->
                     <div class="section-group">
-                        <h3><i class="fa-solid fa-brain"></i> Hiperparâmetros</h3>
+                        <h3><i class="fa-solid fa-brain"></i> Hiperparâmetros de Visão</h3>
                         
                         <div class="form-control">
                             <label for="threshold">
-                                Limiar de Confiança (U-Net)
-                                <span class="info-tooltip" title="Probabilidade mínima para considerar que o pixel é de um painel solar"><i class="fa-solid fa-circle-info"></i></span>
+                                Limiar de Confiança (Threshold)
+                                <span class="info-tooltip" title="Probabilidade mínima de ativação da U-Net para classificar o pixel como painel solar"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
                                 <input type="range" id="threshold" name="threshold" min="0.1" max="0.9" step="0.05" value="0.55">
@@ -115,8 +153,8 @@
 
                         <div class="form-control">
                             <label for="min_area">
-                                Área Mínima do Painel (Pixels)
-                                <span class="info-tooltip" title="Filtro para remover ruídos e objetos muito pequenos. Blobs menores que este número de pixels serão excluídos do cálculo final (Padrão: 250 pixels = ~0.4 m² com GSD de 3.89 cm)"><i class="fa-solid fa-circle-info"></i></span>
+                                Filtro de Área Mínima (Pixels)
+                                <span class="info-tooltip" title="Remove pequenos ruídos desconectados (Connected Components menores que este valor são descartados)"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
                                 <input type="range" id="min_area" name="min_area" min="50" max="1000" step="10" value="250">
@@ -126,10 +164,10 @@
 
                         <div class="form-control checkbox-control">
                             <label for="overlap">
-                                <input type="checkbox" id="overlap" name="overlap">
+                                <input type="checkbox" id="overlap" name="overlap" checked>
                                 <span class="checkmark"></span>
-                                <strong>Slicing com Sobreposição (50%)</strong>
-                                <span class="info-tooltip" title="Ativa stride de 256px com 50% de sobreposição. Melhora a qualidade da predição nas bordas dos tiles, porém quadriplica o tempo de análise da imagem."><i class="fa-solid fa-circle-info"></i></span>
+                                <strong>Sliding Window Suave (Hann 2D)</strong>
+                                <span class="info-tooltip" title="Ativa sobreposição de 25% com janela Hann 2D, eliminando descontinuidades e o efeito de corte nas bordas dos tiles."><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                         </div>
                     </div>
@@ -139,13 +177,13 @@
 
         <!-- Área Principal -->
         <section class="main-content">
-            <!-- Etapa 1: Drag and Drop Upload -->
+            <!-- Drag and Drop Upload -->
             <div class="panel-card upload-section" id="upload-panel">
                 <div class="drop-zone" id="drop-zone">
                     <div class="drop-zone-content">
                         <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
-                        <h3>Arraste e solte uma imagem aérea</h3>
-                        <p>Formatos aceitos: PNG, JPG ou JPEG. Resoluções altas de satélite ou drone são recomendadas.</p>
+                        <h3>Arraste e solte uma imagem aérea ou ortofoto</h3>
+                        <p>Formatos suportados: PNG, JPG, JPEG. Resoluções urbanas de satélite, drone ou ortofotos municipais.</p>
                         <span class="file-btn">Selecionar Arquivo</span>
                         <input type="file" id="file-input" accept="image/*" style="display: none;">
                     </div>
@@ -162,7 +200,7 @@
                 </button>
             </div>
 
-            <!-- Pipeline Status Tracker -->
+            <!-- Pipeline Tracker -->
             <div class="panel-card pipeline-tracker" id="pipeline-panel" style="display: none;">
                 <div class="panel-header">
                     <i class="fa-solid fa-diagram-project text-solar"></i>
@@ -176,12 +214,12 @@
                     <div class="pipeline-connector"></div>
                     <div class="pipeline-step" id="step-tiling">
                         <div class="step-icon"><i class="fa-solid fa-scissors"></i></div>
-                        <div class="step-label">Fragmentação (Tiles)</div>
+                        <div class="step-label">Sliding Window (Hann)</div>
                     </div>
                     <div class="pipeline-connector"></div>
                     <div class="pipeline-step" id="step-unet">
                         <div class="step-icon"><i class="fa-solid fa-brain"></i></div>
-                        <div class="step-label">Predição U-Net</div>
+                        <div class="step-label">Inferência U-Net</div>
                     </div>
                     <div class="pipeline-connector"></div>
                     <div class="pipeline-step" id="step-post">
@@ -191,7 +229,7 @@
                     <div class="pipeline-connector"></div>
                     <div class="pipeline-step" id="step-calc">
                         <div class="step-icon"><i class="fa-solid fa-chart-line"></i></div>
-                        <div class="step-label">Estimativa Final</div>
+                        <div class="step-label">Correção & Estimativa</div>
                     </div>
                 </div>
                 <div class="pipeline-status-text" id="pipeline-status-text">
@@ -202,7 +240,7 @@
                 </div>
             </div>
 
-            <!-- Resultados Dashboard (Oculto até processar) -->
+            <!-- Resultados Dashboard -->
             <div class="dashboard-results" id="results-panel" style="display: none;">
                 
                 <!-- Métricas KPIs -->
@@ -210,18 +248,18 @@
                     <div class="metric-card gold-glow">
                         <div class="metric-icon"><i class="fa-solid fa-solar-panel"></i></div>
                         <div class="metric-info">
-                            <span class="metric-title">Área Total de Painéis</span>
+                            <span class="metric-title">Área Real dos Módulos (S<sub>pv</sub>)</span>
                             <h3 class="metric-value"><span id="metric-area">0.00</span> <small>m²</small></h3>
-                            <span class="metric-subtitle">GSD Utilizado: <span id="metric-gsd-ref">0.0389</span>m</span>
+                            <span class="metric-subtitle">Projetada: <span id="metric-proj-area">0.00</span> m² (x<span id="metric-tilt-factor">1.00</span>)</span>
                         </div>
                     </div>
                     
                     <div class="metric-card cyan-glow">
                         <div class="metric-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
                         <div class="metric-info">
-                            <span class="metric-title">Potência Pico Est.</span>
+                            <span class="metric-title">Potência de Pico Instalada</span>
                             <h3 class="metric-value"><span id="metric-power">0.00</span> <small>kWp</small></h3>
-                            <span class="metric-subtitle">P<sub>pico</sub> = A<sub>total</sub> × η × (1 kW/m²)</span>
+                            <span class="metric-subtitle">P<sub>pico</sub> = S<sub>pv</sub> × η × 1 kW/m²</span>
                         </div>
                     </div>
 
@@ -229,17 +267,17 @@
                         <div class="metric-icon"><i class="fa-solid fa-calendar-days"></i></div>
                         <div class="metric-info">
                             <span class="metric-title">Geração Anual Estimada</span>
-                            <h3 class="metric-value"><span id="metric-annual">0.00</span> <small>kWh</small></h3>
+                            <h3 class="metric-value"><span id="metric-annual">0.00</span> <small>kWh/ano</small></h3>
                             <span class="metric-subtitle">Geração: <span id="metric-daily">0.00</span> kWh/dia (PR: <span id="metric-pr-val-ref">75</span>%)</span>
                         </div>
                     </div>
 
                     <div class="metric-card purple-glow">
-                        <div class="metric-icon"><i class="fa-solid fa-layer-group"></i></div>
+                        <div class="metric-icon"><i class="fa-solid fa-cubes-stacked"></i></div>
                         <div class="metric-info">
-                            <span class="metric-title">Grupos de Painéis</span>
-                            <h3 class="metric-value"><span id="metric-groups">0</span></h3>
-                            <span class="metric-subtitle">Matrizes de painéis conectadas</span>
+                            <span class="metric-title">Módulos Estimados (~550W)</span>
+                            <h3 class="metric-value"><span id="metric-modules">0</span> <small>placas</small></h3>
+                            <span class="metric-subtitle"><span id="metric-groups">0</span> arranjos / grupos detectados</span>
                         </div>
                     </div>
                 </div>
@@ -248,7 +286,7 @@
                 <div class="panel-card visualizer-card">
                     <div class="visualizer-header">
                         <div class="tab-selectors">
-                            <button class="tab-btn active" data-tab="tab-overlay"><i class="fa-solid fa-images"></i> Sobreposição (Fase 4)</button>
+                            <button class="tab-btn active" data-tab="tab-overlay"><i class="fa-solid fa-images"></i> Sobreposição Solar (Fase 4)</button>
                             <button class="tab-btn" data-tab="tab-mask"><i class="fa-solid fa-circle-dot"></i> Máscara U-Net (Fase 3)</button>
                             <button class="tab-btn" data-tab="tab-original"><i class="fa-solid fa-image"></i> Imagem Original</button>
                         </div>
@@ -257,15 +295,15 @@
                     <div class="visualizer-content">
                         <div class="tab-pane active" id="tab-overlay">
                             <img id="result-overlay" src="" alt="Sobreposição Solar">
-                            <div class="visualizer-badge badge-solar">Overlay Detectado (Vermelho/Dourado)</div>
+                            <div class="visualizer-badge badge-solar">Overlay Fotovoltaico (Dourado Solar)</div>
                         </div>
                         <div class="tab-pane" id="tab-mask">
                             <img id="result-mask" src="" alt="Máscara de Predição">
-                            <div class="visualizer-badge badge-gray">Saída Binária Pós-Processada</div>
+                            <div class="visualizer-badge badge-gray">Máscara Binária Filtrada (OpenCV)</div>
                         </div>
                         <div class="tab-pane" id="tab-original">
                             <img id="result-original" src="" alt="Imagem Original">
-                            <div class="visualizer-badge badge-slate">Entrada Original</div>
+                            <div class="visualizer-badge badge-slate">Ortofoto / Satélite de Entrada</div>
                         </div>
                     </div>
                 </div>
@@ -275,28 +313,28 @@
                     <div class="panel-header">
                         <div class="title-with-desc">
                             <i class="fa-solid fa-cubes text-solar"></i>
-                            <h2>Visualização da Fragmentação (Tiles)</h2>
-                            <p>Exibição dos blocos de 512x512 pixels onde o modelo U-Net encontrou padrões fotovoltaicos com alta probabilidade.</p>
+                            <h2>Galeria de Detecções (Tiles 512x512)</h2>
+                            <p>Amostras de blocos com segmentação fotovoltaica e janelamento suave aplicados.</p>
                         </div>
                     </div>
                     <div class="tiles-grid" id="tiles-gallery-container">
-                        <!-- Tiles injetados pelo Javascript -->
+                        <!-- Tiles inseridos via JS -->
                     </div>
                 </div>
 
-                <!-- Resumo Metadados do Processamento -->
+                <!-- Resumo Metadados Técnicos -->
                 <div class="panel-card metadata-card">
                     <div class="panel-header">
                         <i class="fa-solid fa-circle-info text-solar"></i>
-                        <h2>Detalhes Técnicos do Processamento</h2>
+                        <h2>Parâmetros e Metadados Técnicos</h2>
                     </div>
                     <div class="metadata-grid">
                         <div class="meta-item">
-                            <span class="meta-label">Nome do Arquivo</span>
+                            <span class="meta-label">Arquivo de Entrada</span>
                             <span class="meta-value" id="meta-filename">-</span>
                         </div>
                         <div class="meta-item">
-                            <span class="meta-label">Dimensões da Imagem</span>
+                            <span class="meta-label">Resolução Nativa</span>
                             <span class="meta-value" id="meta-resolution">-</span>
                         </div>
                         <div class="meta-item">
@@ -304,16 +342,24 @@
                             <span class="meta-value" id="meta-device">-</span>
                         </div>
                         <div class="meta-item">
+                            <span class="meta-label">Inclinação & Latitude</span>
+                            <span class="meta-value" id="meta-tilt-info">-</span>
+                        </div>
+                        <div class="meta-item">
                             <span class="meta-label">Total de Tiles Analisados</span>
                             <span class="meta-value" id="meta-total-tiles">-</span>
                         </div>
                         <div class="meta-item">
-                            <span class="meta-label">Tiles com Detecção</span>
+                            <span class="meta-label">Tiles com Painéis Solares</span>
                             <span class="meta-value" id="meta-active-tiles">-</span>
                         </div>
                         <div class="meta-item">
-                            <span class="meta-label">Pixels de Silício Solar</span>
+                            <span class="meta-label">Pixels de Silício Identificados</span>
                             <span class="meta-value" id="meta-pixels">-</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Fator de Correção de Área</span>
+                            <span class="meta-value" id="meta-tilt-factor-val">-</span>
                         </div>
                     </div>
                 </div>
@@ -322,7 +368,7 @@
     </main>
 
     <footer class="app-footer">
-        <p>Desenvolvido para o TCC II - Estimativa de Geração Fotovoltaica em Imagens Aéreas usando Visão Computacional profunda (U-Net) e OpenCV.</p>
+        <p>SolarSegment • TCC II — Detecção de Painéis Solares e Estimativa Fotovoltaica com Segmentação Semântica U-Net e OpenCV.</p>
     </footer>
 
     <!-- Scripts -->

@@ -1,9 +1,13 @@
-requests==2.31.0
-python-dotenv==1.0.1
-tqdm==4.66.2
-Pillow
-torch
-torchvision
-# Dependências pesadas (numpy, rasterio) removidas temporariamente.
-# O Windows encontra dificuldades para instalar bibliotecas C-based
-# quando o caminho do diretório possui acentos (Implementação).
+fastapi>=0.100.0
+uvicorn>=0.22.0
+python-multipart>=0.0.6
+torch>=2.0.0
+torchvision>=0.15.0
+pillow>=9.5.0
+opencv-python>=4.7.0
+rasterio>=1.3.0
+numpy>=1.24.0
+tqdm>=4.66.0
+requests>=2.31.0
+python-dotenv>=1.0.1
+matplotlib>=3.7.0

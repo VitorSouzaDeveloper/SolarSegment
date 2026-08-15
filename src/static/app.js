@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Parâmetros da UI
     const gsdSlider = document.getElementById('gsd');
     const gsdInput = document.getElementById('gsd-val-input');
+    const tiltSlider = document.getElementById('tilt_angle');
+    const tiltVal = document.getElementById('tilt_angle-val');
+    const latInput = document.getElementById('latitude');
+    const useTiltCheck = document.getElementById('use_tilt_correction');
     const etaInput = document.getElementById('eta');
     const etaVal = document.getElementById('eta-val');
     const iLocalInput = document.getElementById('i_local');
@@ -41,10 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Results Dashboard
     const resultsPanel = document.getElementById('results-panel');
     const metricArea = document.getElementById('metric-area');
-    const metricGsdRef = document.getElementById('metric-gsd-ref');
+    const metricProjArea = document.getElementById('metric-proj-area');
+    const metricTiltFactor = document.getElementById('metric-tilt-factor');
     const metricPower = document.getElementById('metric-power');
     const metricDaily = document.getElementById('metric-daily');
     const metricAnnual = document.getElementById('metric-annual');
+    const metricModules = document.getElementById('metric-modules');
     const metricGroups = document.getElementById('metric-groups');
     
     // Visualizer Tabs
@@ -65,37 +71,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const metaFilename = document.getElementById('meta-filename');
     const metaResolution = document.getElementById('meta-resolution');
     const metaDevice = document.getElementById('meta-device');
+    const metaTiltInfo = document.getElementById('meta-tilt-info');
     const metaTotalTiles = document.getElementById('meta-total-tiles');
     const metaActiveTiles = document.getElementById('meta-active-tiles');
     const metaPixels = document.getElementById('meta-pixels');
+    const metaTiltFactorVal = document.getElementById('meta-tilt-factor-val');
 
     let selectedFile = null;
 
     // --- 1. Sincronização dos Sliders e Valores ---
-    // Sincroniza slider -> campo numérico
     gsdSlider.addEventListener('input', () => {
         gsdInput.value = parseFloat(gsdSlider.value).toFixed(4);
-        updatePresetActive(gsdSlider.value);
+        updatePresetActive('gsd', gsdSlider.value);
     });
 
-    // Sincroniza campo numérico -> slider
     gsdInput.addEventListener('input', () => {
         const val = parseFloat(gsdInput.value);
         if (!isNaN(val) && val >= 0.0001 && val <= 5.0) {
             gsdSlider.value = val;
-            updatePresetActive(val);
+            updatePresetActive('gsd', val);
         }
     });
 
-    function updatePresetActive(value) {
-        presetBtns.forEach(btn => {
-            if (Math.abs(parseFloat(btn.dataset.value) - parseFloat(value)) < 0.0001) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-    }
+    tiltSlider.addEventListener('input', () => {
+        tiltVal.textContent = tiltSlider.value + ' °';
+        updatePresetActive('tilt', tiltSlider.value);
+    });
 
     etaInput.addEventListener('input', () => {
         etaVal.textContent = (parseFloat(etaInput.value) * 100).toFixed(1) + ' %';
@@ -117,18 +118,38 @@ document.addEventListener('DOMContentLoaded', () => {
         prVal.textContent = (parseFloat(prInput.value) * 100).toFixed(1) + ' %';
     });
 
+    function updatePresetActive(type, value) {
+        presetBtns.forEach(btn => {
+            if (btn.dataset.type === type) {
+                if (Math.abs(parseFloat(btn.dataset.value) - parseFloat(value)) < 0.0001) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            }
+        });
+    }
+
     // Preset click listeners
     presetBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            presetBtns.forEach(b => b.classList.remove('active'));
+            const type = btn.dataset.type;
+            const val = btn.dataset.value;
+            
+            presetBtns.forEach(b => {
+                if (b.dataset.type === type) b.classList.remove('active');
+            });
             btn.classList.add('active');
-            gsdInput.value = btn.dataset.value;
-            gsdInput.dispatchEvent(new Event('input'));
+            
+            if (type === 'gsd') {
+                gsdInput.value = val;
+                gsdInput.dispatchEvent(new Event('input'));
+            } else if (type === 'tilt') {
+                tiltSlider.value = val;
+                tiltSlider.dispatchEvent(new Event('input'));
+            }
         });
     });
-
-    // Ativa preset ortofoto por padrão
-    presetBtns[0].classList.add('active');
 
     // --- 2. Upload Drag & Drop ---
     dropZone.addEventListener('click', (e) => {
@@ -166,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = files[0];
         
         if (!file.type.startsWith('image/')) {
-            alert('Por favor, envie apenas arquivos de imagem.');
+            alert('Por favor, selecione um arquivo de imagem válido (PNG, JPG ou JPEG).');
             return;
         }
 
@@ -198,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
             step.classList.remove('active', 'completed');
         });
         progressBar.style.width = '0%';
+        progressBar.style.background = 'linear-gradient(90deg, var(--solar), var(--cyan))';
         pipelineStatusText.textContent = 'Aguardando inicialização...';
     }
 
@@ -216,14 +238,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Delay helper para simular eixos do pipeline de forma suave e bonita
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // --- 4. Submissão do Pipeline ---
+    // --- 4. Execução do Pipeline ---
     runBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
 
-        // Limpa estado anterior
         resultsPanel.style.display = 'none';
         pipelinePanel.style.display = 'block';
         pipelinePanel.scrollIntoView({ behavior: 'smooth' });
@@ -231,21 +251,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Upload
         setStepState('upload', 'active');
-        pipelineStatusText.textContent = 'Enviando imagem aérea e configurando parâmetros no servidor...';
-        progressBar.style.width = '10%';
-        await sleep(600);
-        
+        pipelineStatusText.textContent = 'Enviando imagem aérea e configurando parâmetros no servidor FastAPI...';
+        progressBar.style.width = '12%';
+        await sleep(500);
         setStepState('upload', 'completed');
         
-        // 2. Tiling
+        // 2. Sliding Window (Tiling)
         setStepState('tiling', 'active');
-        pipelineStatusText.textContent = 'Fragmentando ortofoto de entrada em blocos de 512x512 pixels...';
+        pipelineStatusText.textContent = 'Executando Sliding Window com sobreposição e ponderação suave (Hann 2D)...';
         progressBar.style.width = '30%';
         
-        // Prepara dados de envio
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('gsd', gsdInput.value);
+        formData.append('tilt_angle', tiltSlider.value);
+        formData.append('latitude', latInput.value);
+        formData.append('use_tilt_correction', useTiltCheck.checked);
         formData.append('eta', etaInput.value);
         formData.append('i_local', iLocalInput.value);
         formData.append('threshold', thresholdInput.value);
@@ -253,11 +274,12 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('tile_size', '512');
         formData.append('overlap', overlapInput.checked);
         formData.append('pr', prInput.value);
+        formData.append('module_power_w', '550.0');
+        formData.append('module_area_m2', '2.20');
 
         const startTime = Date.now();
 
         try {
-            // Chamada à API FastAPI
             const response = await fetch('/analyze', {
                 method: 'POST',
                 body: formData
@@ -265,49 +287,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.detail || 'Ocorreu um erro no servidor durante o processamento.');
+                throw new Error(errorData.detail || 'Ocorreu um erro durante a inferência no servidor.');
             }
 
             const data = await response.json();
-            const elapsed = Date.now() - startTime;
             
-            // Simula o progresso dos passos seguintes dependendo do tempo decorrido
-            pipelineStatusText.textContent = `Fragmentação concluída (${data.metadata.total_tiles} tiles gerados). Iniciando predição pela Rede Neural U-Net...`;
+            pipelineStatusText.textContent = `Fragmentação concluída (${data.metadata.total_tiles} tiles). Processando inferência na U-Net...`;
             setStepState('tiling', 'completed');
-            progressBar.style.width = '50%';
-            await sleep(800);
+            progressBar.style.width = '55%';
+            await sleep(600);
 
             // 3. U-Net
             setStepState('unet', 'active');
-            pipelineStatusText.textContent = `Processando inferência profunda pixel-a-pixel no dispositivo ${data.metadata.device_used}...`;
-            progressBar.style.width = '70%';
-            await sleep(900);
-            
+            pipelineStatusText.textContent = `Segmentação convolucional profunda concluída no dispositivo ${data.metadata.device_used}...`;
+            progressBar.style.width = '75%';
+            await sleep(600);
             setStepState('unet', 'completed');
 
             // 4. Pós-Processamento
             setStepState('post', 'active');
-            pipelineStatusText.textContent = 'Executando pós-processamento: fechamento morfológico e filtro de área conectado...';
-            progressBar.style.width = '85%';
-            await sleep(700);
-            
+            pipelineStatusText.textContent = 'Aplicando fechamento morfológico e filtro de área mínima conectada (OpenCV)...';
+            progressBar.style.width = '88%';
+            await sleep(500);
             setStepState('post', 'completed');
 
-            // 5. Estimativa Final
+            // 5. Estimativa & Correção
             setStepState('calc', 'active');
-            pipelineStatusText.textContent = 'Calculando modelo matemático fotovoltaico e compilando estatísticas...';
+            pipelineStatusText.textContent = 'Calculando correção geométrica de inclinação (Jiao et al.) e estimativas de potência...';
             progressBar.style.width = '100%';
-            await sleep(600);
-            
+            await sleep(400);
             setStepState('calc', 'completed');
             pipelineStatusText.textContent = 'Pipeline executado com sucesso!';
 
-            // Renderiza resultados
             renderResults(data);
 
         } catch (error) {
             console.error(error);
-            pipelineStatusText.textContent = `Erro no Pipeline: ${error.message}`;
+            pipelineStatusText.textContent = `Erro: ${error.message}`;
             progressBar.style.background = '#ef4444';
             progressBar.style.width = '100%';
         }
@@ -315,20 +331,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 5. Renderização dos Resultados ---
     function renderResults(data) {
-        // Exibe o painel de resultados
         resultsPanel.style.display = 'flex';
         
-        // Rolagem suave para o painel
         setTimeout(() => {
             resultsPanel.scrollIntoView({ behavior: 'smooth' });
         }, 100);
 
         // 1. KPIs
         metricArea.textContent = data.results.area_total_m2.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        metricGsdRef.textContent = data.results.gsd.toFixed(4);
+        metricProjArea.textContent = data.results.area_projetada_m2.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        metricTiltFactor.textContent = data.results.tilt_factor.toFixed(2);
+        
         metricPower.textContent = data.results.potencia_pico_kwp.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         metricDaily.textContent = data.results.geracao_diaria_kwh.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         metricAnnual.textContent = data.results.geracao_anual_kwh.toLocaleString('pt-BR', { minimumFractionDigits: 0 });
+        
+        metricModules.textContent = data.results.estimated_modules.toLocaleString('pt-BR');
         metricGroups.textContent = data.results.detected_groups;
         document.getElementById('metric-pr-val-ref').textContent = (parseFloat(prInput.value) * 100).toFixed(0);
 
@@ -339,19 +357,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3. Metadados do Sistema
         metaFilename.textContent = data.metadata.filename;
-        metaResolution.textContent = `${data.metadata.width} x ${data.metadata.height} px`;
+        metaResolution.textContent = `${data.metadata.width} × ${data.metadata.height} px`;
         metaDevice.textContent = data.metadata.device_used.toUpperCase();
+        metaTiltInfo.textContent = `β: ${data.metadata.tilt_angle}° | φ: ${data.metadata.latitude}°`;
         metaTotalTiles.textContent = data.metadata.total_tiles;
         metaActiveTiles.textContent = data.metadata.tiles_with_detection;
         metaPixels.textContent = data.results.total_solar_pixels.toLocaleString('pt-BR');
+        metaTiltFactorVal.textContent = `x${data.results.tilt_factor.toFixed(3)} (${data.results.tilt_angle > 0 && data.metadata.use_tilt_correction ? 'Jiao et al.' : 'Horizontal'})`;
 
         // 4. Galeria de Tiles
         tilesGalleryContainer.innerHTML = '';
-        if (data.tiles_gallery.length === 0) {
+        if (!data.tiles_gallery || data.tiles_gallery.length === 0) {
             tilesGalleryContainer.innerHTML = `
                 <div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 2rem;">
                     <i class="fa-solid fa-circle-exclamation" style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-secondary);"></i>
-                    <p>Nenhum tile apresentou área de painel solar superior a 1.5% da área total.</p>
+                    <p>Nenhum tile apresentou área de painel solar superior ao limiar de detecção.</p>
                 </div>
             `;
         } else {
@@ -381,7 +401,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             btn.classList.add('active');
             const tabId = btn.dataset.tab;
-            document.getElementById(tabId).classList.add('active');
+            const targetPane = document.getElementById(tabId);
+            if (targetPane) targetPane.classList.add('active');
         });
     });
 
@@ -394,7 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Fecha tela cheia com ESC
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && visualizerCard.classList.contains('fullscreen')) {
             visualizerCard.classList.remove('fullscreen');

@@ -1,6 +1,7 @@
 import os
 import io
 import sys
+import math
 import base64
 import importlib
 import numpy as np
@@ -12,14 +13,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from torchvision.transforms import v2
 
-app = FastAPI(title="TCC II Solar Panel Detection & Power Estimation")
+app = FastAPI(title="SolarSegment - Visão Computacional & Estimativa Fotovoltaica (TCC II)")
 
-# Adiciona a pasta atual ao Python path para permitir a importação de 3_train_unet
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
-# Certifica-se de que a pasta static existe
 os.makedirs(os.path.join(current_dir, "static"), exist_ok=True)
 
 # Cache global para o modelo U-Net
@@ -32,26 +31,34 @@ def get_model():
         
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     base_dir = os.path.abspath(os.path.join(current_dir, ".."))
-    model_path = os.path.join(base_dir, "models", "unet_solar.pth")
-    
+    model_path = os.path.join(base_dir, "models", "unet_solar_best.pth")
     if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Arquivo de pesos do modelo não encontrado em {model_path}")
+        model_path = os.path.join(base_dir, "models", "unet_solar.pth")
         
     try:
-        # Importação dinâmica para contornar o nome do arquivo começando com número
         train_module = importlib.import_module("3_train_unet")
         UNet = train_module.UNet
     except Exception as e:
         raise ImportError(f"Erro ao importar a U-Net de 3_train_unet: {e}")
         
     model = UNet(in_channels=3, out_channels=1)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    if os.path.exists(model_path):
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        print(f"Modelo U-Net carregado com sucesso ({model_path}) no dispositivo: {device}")
+    else:
+        print(f"[AVISO] Pesos não encontrados em {model_path}. Inicializando U-Net em modo de demonstração. Execute 3_train_unet.py para treinar os pesos ideais.")
+        
     model.to(device)
     model.eval()
     
     model_cache = model
-    print(f"Modelo U-Net carregado com sucesso no dispositivo: {device}")
     return model_cache
+
+def create_hann_window_2d(size):
+    """Cria janela 2D Hann para fusão suave sem artefatos de borda."""
+    hann_1d = np.hanning(size)
+    hann_2d = np.outer(hann_1d, hann_1d)
+    return np.clip(hann_2d, 1e-4, 1.0).astype(np.float32)
 
 def resize_for_display(img, max_size=1920):
     w, h = img.size
@@ -81,9 +88,9 @@ async def get_index():
     return HTMLResponse(content="""
     <html>
         <head><title>Erro</title></head>
-        <body style="font-family: sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding-top: 10%;">
+        <body style="font-family: sans-serif; background: #0b0f19; color: #f8fafc; text-align: center; padding-top: 10%;">
             <h1>static/index.html não encontrado</h1>
-            <p>Por favor, crie o arquivo index.html no diretório src/static.</p>
+            <p>Por favor, certifique-se de que os arquivos estáticos estejam em src/static.</p>
         </body>
     </html>
     """)
@@ -97,17 +104,20 @@ async def analyze(
     threshold: float = Form(0.55),
     min_area: int = Form(250),
     tile_size: int = Form(512),
-    overlap: bool = Form(False),
-    pr: float = Form(0.75)
+    overlap: bool = Form(True),
+    pr: float = Form(0.75),
+    tilt_angle: float = Form(20.0),
+    latitude: float = Form(-22.22),
+    use_tilt_correction: bool = Form(True),
+    module_power_w: float = Form(550.0),
+    module_area_m2: float = Form(2.20)
 ):
     try:
-        # Carrega o modelo
         net = get_model()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao carregar o modelo de rede neural: {e}")
         
     try:
-        # Lê os bytes da imagem enviada
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
     except Exception as e:
@@ -116,33 +126,30 @@ async def analyze(
     width, height = image.size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Determina o stride baseado na sobreposição
-    stride = tile_size // 2 if overlap else tile_size
+    # Configuração de sobreposição (overlap)
+    overlap_ratio = 0.25 if overlap else 0.0
+    stride = int(tile_size * (1.0 - overlap_ratio)) if overlap else tile_size
+    stride = max(1, min(stride, tile_size))
     
-    # Transformador
     transform = v2.Compose([
         v2.ToImage(),
         v2.ToDtype(torch.float32, scale=True)
     ])
     
-    # Matrizes de acumulação para reconstruir a imagem
+    hann_weight = create_hann_window_2d(tile_size) if overlap else np.ones((tile_size, tile_size), dtype=np.float32)
+    
+    # Matrizes de acumulação
     full_prob = np.zeros((height, width), dtype=np.float32)
     full_weight = np.zeros((height, width), dtype=np.float32)
     
     x_coords = list(range(0, width, stride))
     y_coords = list(range(0, height, stride))
     
-    # Adiciona as coordenadas finais caso a divisão não seja exata
     if len(x_coords) == 0 or x_coords[-1] + tile_size < width:
-        x_coords.append(width - tile_size)
+        x_coords.append(max(0, width - tile_size))
     if len(y_coords) == 0 or y_coords[-1] + tile_size < height:
-        y_coords.append(height - tile_size)
+        y_coords.append(max(0, height - tile_size))
         
-    # Garante que as coordenadas sejam não-negativas
-    x_coords = [max(0, x) for x in x_coords]
-    y_coords = [max(0, y) for y in y_coords]
-    
-    # Remove duplicadas mantendo a ordem
     x_coords = sorted(list(set(x_coords)))
     y_coords = sorted(list(set(y_coords)))
     
@@ -151,17 +158,13 @@ async def analyze(
     detected_tiles_gallery = []
     max_gallery_tiles = 8
     
-    # Loop de fragmentação e inferência tile-por-tile
     for y in y_coords:
         for x in x_coords:
             total_tiles += 1
             x_end = min(x + tile_size, width)
             y_end = min(y + tile_size, height)
             
-            # Recorta o tile correspondente
             tile = image.crop((x, y, x_end, y_end))
-            
-            # Pad com preto se o tile for menor que tile_size (nos limites direito/inferior)
             active_h = y_end - y
             active_w = x_end - x
             
@@ -172,30 +175,25 @@ async def analyze(
             else:
                 input_tensor = transform(tile).unsqueeze(0).to(device)
                 
-            # Roda inferência
             with torch.no_grad():
                 output = net(input_tensor)
-                prob = torch.sigmoid(output).squeeze(0).squeeze(0).cpu().numpy() # shape (512, 512)
+                prob = torch.sigmoid(output).squeeze().cpu().numpy()
                 
-            # Extrai apenas a parte ativa correspondente à imagem original
             prob_active = prob[0:active_h, 0:active_w]
+            weight_active = hann_weight[0:active_h, 0:active_w]
             
-            # Acumula na matriz geral
-            full_prob[y:y_end, x:x_end] += prob_active
-            full_weight[y:y_end, x:x_end] += 1.0
+            full_prob[y:y_end, x:x_end] += prob_active * weight_active
+            full_weight[y:y_end, x:x_end] += weight_active
             
-            # Analisa se o tile possui detecção significativa
             tile_mask = prob_active > threshold
             ratio = float(np.mean(tile_mask))
             
             if ratio > 0.015:
                 tiles_with_detection += 1
-                # Se ainda houver vaga na galeria, prepara o tile e seu overlay
                 if len(detected_tiles_gallery) < max_gallery_tiles:
                     tile_np = np.array(tile)
                     tile_overlay = tile_np.copy()
-                    # Desenha overlay amarelo dourado translúcido nas coordenadas preditas
-                    tile_overlay[tile_mask] = [251, 191, 36]
+                    tile_overlay[tile_mask] = [251, 191, 36] # Dourado solar
                     tile_overlay_img = Image.blend(tile, Image.fromarray(tile_overlay), alpha=0.55)
                     
                     orig_tile_b64 = pil_to_base64(tile, format="JPEG", quality=85)
@@ -212,18 +210,18 @@ async def analyze(
                         "detection_ratio": round(ratio * 100, 2)
                     })
                     
-    # Média das áreas sobrepostas
+    # Normalização dos pesos de sobreposição
     full_weight[full_weight == 0] = 1.0
     full_prob /= full_weight
     
-    # 1. Aplicação do Threshold
+    # 1. Limiarização
     pred_mask = (full_prob > threshold).astype(np.uint8) * 255
     
     # 2. Pós-Processamento Morfológico (Fechamento)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     pred_mask = cv2.morphologyEx(pred_mask, cv2.MORPH_CLOSE, kernel)
     
-    # 3. Filtro de Área Mínima (OpenCV Connected Components)
+    # 3. Filtro de Área Mínima (Connected Components)
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(pred_mask, connectivity=8)
     filtered_mask = np.zeros_like(pred_mask)
     
@@ -233,32 +231,48 @@ async def analyze(
             
     pred_mask = filtered_mask
     
-    # Contagem de pixels classificados como Painel Solar
+    # Contagem de pixels e agrupamentos de painéis
     total_solar_pixels = int(np.sum(pred_mask > 0))
-    
-    # Contagem final de grupos de painéis conectados (após o filtro)
     final_num_labels, _, _, _ = cv2.connectedComponentsWithStats(pred_mask, connectivity=8)
     detected_panel_groups = max(0, final_num_labels - 1)
     
-    # Cálculos Matemáticos de Estimativa (Academicamente Corretos)
+    # --- MODELO MATEMÁTICO COM CORREÇÃO DE INCLINAÇÃO ---
+    # 1. Área Projetada Ortogonal (A_proj)
     area_per_pixel = gsd * gsd
-    a_total = total_solar_pixels * area_per_pixel
+    a_proj = total_solar_pixels * area_per_pixel
     
-    # Potência Pico Instalada (kWp) = Area (m2) * Eficiência (eta) * Irradiância STC (1 kW/m2)
-    p_pico = a_total * eta
+    # 2. Área Real Corrigida (S_pv = A_proj / cos(β))
+    # Ortofotos capturam a projeção horizontal plana; os painéis reais nos telhados têm inclinação β.
+    if use_tilt_correction and tilt_angle > 0:
+        beta_rad = math.radians(tilt_angle)
+        cos_beta = math.cos(beta_rad)
+        if cos_beta > 0.1:
+            tilt_factor = 1.0 / cos_beta
+        else:
+            tilt_factor = 1.0
+            
+        tilt_factor = max(1.0, float(tilt_factor))
+        s_pv = a_proj * tilt_factor
+    else:
+        tilt_factor = 1.0
+        s_pv = a_proj
+        
+    # 3. Potência de Pico Instalada (kWp)
+    p_pico = s_pv * eta
     
-    # Geração diária em kWh/dia = Potência Pico (kWp) * Irradiação local (kWh/m2/dia) * Performance Ratio (PR)
+    # 4. Geração Diária e Anual (kWh)
     generation_daily_kwh = p_pico * i_local * pr
-    generation_annual_kwh = generation_daily_kwh * 365
+    generation_annual_kwh = generation_daily_kwh * 365.0
     
-    # Cria a imagem de overlay final
+    # 5. Estimativa de Módulos Físicos Discretos
+    estimated_modules = int(round(s_pv / module_area_m2)) if module_area_m2 > 0 else 0
+    
+    # Criação do Overlay Visual
     img_np = np.array(image)
     overlay_mask = np.zeros_like(img_np)
-    # Cor amarela dourada para o overlay
-    overlay_mask[pred_mask > 0] = [251, 191, 36]
+    overlay_mask[pred_mask > 0] = [251, 191, 36] # Dourado Solar
     overlay_img = Image.blend(image, Image.fromarray(overlay_mask), alpha=0.55)
     
-    # Redimensiona para exibição web para manter as base64 leves
     display_orig = resize_for_display(image)
     display_mask = resize_for_display(Image.fromarray(pred_mask, mode="L"))
     display_overlay = resize_for_display(overlay_img)
@@ -274,31 +288,41 @@ async def analyze(
             "height": height,
             "total_tiles": total_tiles,
             "tiles_with_detection": tiles_with_detection,
-            "device_used": str(device)
+            "device_used": str(device),
+            "tilt_angle": tilt_angle,
+            "latitude": latitude,
+            "tilt_factor": round(tilt_factor, 3),
+            "use_tilt_correction": use_tilt_correction
         },
         "results": {
             "total_solar_pixels": total_solar_pixels,
             "gsd": gsd,
-            "area_total_m2": round(a_total, 2),
+            "area_projetada_m2": round(a_proj, 2),
+            "area_total_m2": round(s_pv, 2),
+            "s_pv_m2": round(s_pv, 2),
+            "tilt_factor": round(tilt_factor, 3),
+            "tilt_angle": tilt_angle,
+            "latitude": latitude,
             "potencia_pico_kwp": round(p_pico, 2),
             "geracao_diaria_kwh": round(generation_daily_kwh, 2),
             "geracao_anual_kwh": round(generation_annual_kwh, 2),
             "detected_groups": detected_panel_groups,
-            "pr": pr
+            "estimated_modules": estimated_modules,
+            "pr": pr,
+            "eta": eta,
+            "i_local": i_local
         },
         "images": {
             "original_b64": orig_b64,
             "mask_b64": mask_b64,
             "overlay_b64": overlay_b64
         },
-        "results_text": f"Área de Painéis: {a_total:.2f} m² | Potência Pico: {p_pico:.2f} kWp | Grupos Detectados: {detected_panel_groups}",
+        "results_text": f"Área Real: {s_pv:.2f} m² (Projetada: {a_proj:.2f} m²) | Potência Pico: {p_pico:.2f} kWp | Módulos: ~{estimated_modules} un",
         "tiles_gallery": detected_tiles_gallery
     }
 
-# Monta arquivos estáticos
 app.mount("/static", StaticFiles(directory=os.path.join(current_dir, "static")), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    # Inicializa na porta 8000
     uvicorn.run(app, host="127.0.0.1", port=8000)

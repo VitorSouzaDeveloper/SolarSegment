@@ -1,8 +1,8 @@
 # Estimativa de Potência Fotovoltaica via Segmentação Semântica U-Net (TCC II)
 
-Este repositório contém a implementação prática do Trabalho de Conclusão de Curso (TCC II), focado na detecção automatizada de painéis solares em imagens aéreas de alta resolução e na estimativa da capacidade de geração de energia fotovoltaica.
+Este repositório contém a implementação prática do Trabalho de Conclusão de Curso (TCC II), focado na detecção automatizada de painéis solares em imagens aéreas e ortofotos de alta resolução, aplicando correção geométrica de inclinação de telhado e estimativa da capacidade de geração de energia fotovoltaica.
 
-O sistema utiliza a arquitetura de rede neural profunda **U-Net** combinada com técnicas de pós-processamento digital de imagens (**OpenCV**) e modelagem matemática fotovoltaica.
+O sistema utiliza a arquitetura de rede neural profunda **U-Net** com **Perda Composta ($\text{wBCE} + \text{Dice Loss}$)**, **Sliding Window com janelamento 2D suave (Hann)** para mitigação de efeitos de borda, pós-processamento digital de imagens (**OpenCV**) e modelagem físico-matemática fotovoltaica com correção angular.
 
 ---
 
@@ -12,12 +12,12 @@ O pipeline de processamento é dividido em duas formas de interação: por scrip
 
 ```mermaid
 graph TD
-    A[Ortofoto Aérea / Imagem Satélite] --> B[Fase 2: Fragmentação em Tiles 512x512]
-    B --> C[Fase 3: Rede Neural U-Net]
-    C --> D[Predição de Máscara Binária]
-    D --> E[Fase 4: Pós-Processamento OpenCV]
-    E --> F[Fase 4: Modelo Matemático de Potência]
-    F --> G[Relatório de Geração kW/dia & kWh/ano]
+    A[Ortofoto Aérea / Imagem Satélite] --> B[Fase 2: Sliding Window & Tiling 512x512]
+    B --> C[Fase 3: Rede Neural U-Net Treinada com wBCE + Dice]
+    C --> D[Predição de Probabilidade com Janelamento Hann 2D]
+    D --> E[Fase 4: Pós-Processamento OpenCV Fechamento & Área Mínima]
+    E --> F[Fase 4: Modelo Matemático com Correção de Inclinação S_pv]
+    F --> G[Relatório de Geração kWp, kWh/dia, kWh/ano e Qtd Módulos]
 ```
 
 ---
@@ -26,24 +26,26 @@ graph TD
 
 ```text
 ├── data/                       # Diretório de dados (Imagens brutas e processadas)
-│   ├── raw/                    # Ortofotos originais (.jp2, .jpeg)
+│   ├── raw/                    # Ortofotos originais (.jp2, .jpeg) e World Files (.jgw)
 │   └── processed/              # Tiles segmentados para treino, validação e teste
 ├── models/                     # Pesos salvos do modelo de rede neural
-│   └── unet_solar.pth          # Pesos do modelo treinado da U-Net
+│   ├── unet_solar.pth          # Pesos do modelo treinado da U-Net
+│   └── unet_solar_best.pth     # Checkpoint com o melhor score Dice/F1
 ├── src/                        # Scripts de código-fonte
 │   ├── static/                 # Frontend da interface web (HTML, CSS, JS)
-│   │   ├── index.html          # Painel e layout principal
-│   │   ├── style.css           # Tema escuro e estilo premium
-│   │   └── app.js              # Controlador Javascript
+│   │   ├── index.html          # Painel e layout principal com controles de inclinação
+│   │   ├── style.css           # Tema escuro, glassmorphism e estilo premium
+│   │   └── app.js              # Controlador Javascript assíncrono
 │   ├── 1_data_acquisition.py   # Aquisição e georreferenciamento de imagens
-│   ├── 2_fragmentation.py      # Divisão da imagem aérea em blocos (tiles) urbanos
-│   ├── 3_train_unet.py         # Treinamento supervisionado da U-Net
-│   ├── 4_inference_estimation.py # Inferência nos testes e cálculo de erros
+│   ├── 2_fragmentation.py      # Fragmentação sistemática com grade sobreposta (stride)
+│   ├── 3_train_unet.py         # Treinamento supervisionado da U-Net (wBCE + Dice Loss)
+│   ├── 4_inference_estimation.py # Inferência Sliding Window, correção angular e métricas
 │   ├── 5_visualize_preds.py    # Geração de visualizações e overlays comparativos
 │   ├── 6_generate_pseudo_labels.py # Geração automatizada de rótulos auxiliares
-│   ├── label_tool.py           # Ferramenta para rotulação manual simples
+│   ├── label_tool.py           # Ferramenta interativa de rotulação manual
 │   └── web_interface.py        # Backend FastAPI e servidor da interface
 ├── requirements.txt            # Dependências Python do projeto
+├── contexto.md                 # Fundamentação técnica e científica do TCC II
 └── README.md                   # Instruções de uso (Este arquivo)
 ```
 
@@ -66,23 +68,23 @@ pip install -r requirements.txt
 
 ## 🚀 Como Utilizar o Sistema
 
-### 1. Preparação e Fragmentação (Fase 2)
-Para recortar imagens aéreas grandes em blocos menores de 512x512 pixels focados em áreas urbanas (descartando áreas de pastagem uniforme), execute:
+### 1. Preparação e Fragmentação Sistemática (Fase 2)
+Para recortar imagens aéreas grandes em blocos de 512x512 pixels com sobreposição para mitigar o corte de painéis nas bordas:
 
 ```bash
 python src/2_fragmentation.py
 ```
 
-### 2. Treinamento da U-Net (Fase 3)
-Com as imagens e suas respectivas máscaras anotadas disponíveis, execute o treinamento da rede neural profunda:
+### 2. Treinamento da U-Net com Perda Composta (Fase 3)
+Treine a rede neural profunda utilizando a perda composta $\text{wBCE} + \text{Dice Loss}$, que equilibra o desbalanceamento severo de classes:
 
 ```bash
 python src/3_train_unet.py
 ```
-*O treinamento rodará por 50 épocas por padrão, salvando o arquivo de pesos ideal em `models/unet_solar.pth`.*
+*O treinamento salva o modelo final em `models/unet_solar.pth` e o melhor checkpoint em `models/unet_solar_best.pth`.*
 
-### 3. Inferência e Avaliação de Erros (Fase 4)
-Para aplicar o modelo no conjunto de teste e obter o relatório estatístico da estimativa de potência:
+### 3. Inferência e Avaliação de Erros com Correção Geométrica (Fase 4)
+Para aplicar o modelo no conjunto de teste via *Sliding Window* com janelamento Hann 2D e obter o relatório estatístico da estimativa de potência:
 
 ```bash
 python src/4_inference_estimation.py
@@ -104,40 +106,56 @@ Para simplificar a visualização do pipeline e possibilitar o upload dinâmico 
    👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
 
 ### Funcionalidades do Dashboard:
-* **Upload Interativo**: Drag and drop simples de imagens.
+* **Upload Interativo**: Drag and drop simples de ortofotos e imagens aéreas.
 * **Ajuste de Parâmetros na Tela**:
-  - **GSD (m/pixel)**: Resolução do pixel no solo. Ex: `0.0389` para ortofotos de alta precisão (3.89 cm) ou `0.2986` para Zoom 19 do Bing (29.8 cm).
-  - **Eficiência ($\eta$)**: Eficiência média comercial do painel solar (ex: `18.5%`).
-  - **Irradiação local ($I_{local}$)**: Irradiação solar diária média da região (ex: `5.4 kWh/m²/dia` para Dourados-MS).
-  - **Threshold e Filtro**: Ajuste dinâmico de limiar de confiança do modelo e tamanho mínimo de área para limpeza de ruídos.
-* **Timeline de Pipeline**: Acompanhamento visual animado de cada estágio do pipeline em execução.
-* **KPIs Dinâmicos**: Exibição da Área estimada ($m^2$), Potência estimada ($kW$), Geração anual ($kWh$) e total de grupos detectados.
-* **Comparador e Visualizador de Imagens**: Alternação rápida de abas entre Imagem Original, Máscara da U-Net e Overlay (imagem original com realce translúcido sobre as placas solares).
+  - **GSD (m/pixel)**: Resolução do pixel no solo (ex: `0.0389` para ortofotos de 3.89 cm ou `0.2986` para Zoom 19 do Bing).
+  - **Inclinação do Telhado ($\beta$)**: Ângulo de inclinação dos módulos (ex: `20°` para telhados residenciais, `22°` para latitude local).
+  - **Latitude Local ($\varphi$)**: Coordenada geográfica para modelos solares (ex: `-22.22°` para Dourados-MS).
+  - **Correção Geométrica ($S_{pv}$)**: Toggle para aplicar $S_{pv} = A_{proj} / \cos(\beta)$.
+  - **Eficiência ($\eta$)**: Eficiência nominal média comercial (ex: `18.5%`).
+  - **Irradiação local ($I_{local}$)**: Irradiação solar diária média (ex: `5.4 kWh/m²/dia`).
+  - **Performance Ratio ($PR$)**: Perdas do sistema (padrão: `75%`).
+  - **Threshold e Filtro**: Ajuste de limiar de confiança da U-Net e tamanho mínimo de área para limpeza de ruídos (OpenCV).
+  - **Sliding Window com Hann 2D**: Inferência com sobreposição e fusão suave sem artefatos de borda.
+* **Timeline de Pipeline**: Acompanhamento visual de cada estágio do pipeline em execução.
+* **KPIs Dinâmicos**: Exibição da Área Real Corrigida ($S_{pv}$), Área Projetada ($A_{proj}$), Potência Pico ($kWp$), Geração Anual ($kWh/ano$), Quantidade Estimada de Módulos (~550W) e Grupos Detectados.
+* **Comparador e Visualizador de Imagens**: Alternação rápida de abas entre Sobreposição Solar (Overlay Dourado), Máscara da U-Net e Imagem Original.
 * **Galeria de Tiles**: Lista os blocos de 512x512 onde o modelo encontrou placas solares, revelando a segmentação com efeito hover.
 
 ---
 
 ## 📐 Modelo Matemático Adotado
 
-Para garantir o rigor físico e acadêmico no TCC, a modelagem foi estruturada distinguindo a **Potência Instalada (Pico)** da **Geração de Energia Real** (considerando perdas do sistema):
+Para garantir o rigor físico e acadêmico no TCC, a modelagem foi estruturada distinguindo a **Área Projetada Ortogonal ($A_{proj}$)** da **Área Real Inclinada ($S_{pv}$)**, da **Potência Instalada (Pico)** e da **Geração Real de Energia**:
 
-### 1. Potência de Pico Instalada ($P_{pico}$)
-Representa a capacidade máxima nominal instalada sob Condições Padrão de Teste (STC, irradiação de $1 \text{ kW/m²}$):
+### 1. Área Projetada Ortogonal ($A_{proj}$)
+Calcula a projeção horizontal plana capturada pelo sensor da câmera aérea:
 
-$$P_{pico} (kWp) = A_{total} \times \eta$$
+$$A_{proj} (m^2) = \text{Pixels de Painel} \times \text{GSD}^2$$
 
-### 2. Geração Diária de Energia ($E_{diaria}$)
-Calcula a geração real média diária de energia em $kWh$, introduzindo a **Taxa de Desempenho ($PR$ - Performance Ratio)** para computar perdas reais (temperatura, cabeamento, sujeira e eficiência do inversor):
+### 2. Correção Geométrica de Inclinação ($S_{pv}$)
+Como os módulos fotovoltaicos são instalados em telhados inclinados com ângulo $\beta$, a área real de captação de silício é maior que a projeção vista do satélite:
+
+$$S_{pv} (m^2) = \frac{A_{proj}}{\cos(\beta)}$$
+
+*(Para um telhado residencial com inclinação padrão de $20^\circ$, a área real é aproximadamente $+6,4\%$ maior; para $25^\circ$, $+10,3\%$ maior).*
+
+### 3. Potência de Pico Instalada ($P_{pico}$)
+Representa a capacidade nominal máxima instalada sob Condições Padrão de Teste (STC, irradiação de $1 \text{ kW/m²}$):
+
+$$P_{pico} (kWp) = S_{pv} \times \eta$$
+
+### 4. Geração Diária de Energia ($E_{diaria}$)
+Calcula a geração média diária em $kWh$, computando perdas reais do sistema (sujeira, cabos, inversores, temperatura) pelo **Performance Ratio ($PR$)**:
 
 $$E_{diaria} (kWh/dia) = P_{pico} \times I_{local} \times PR$$
 
-### 3. Geração Anual de Energia ($E_{anual}$)
-Estima a geração acumulada ao longo de um ano comercial:
+### 5. Geração Anual de Energia ($E_{anual}$)
+Estima a geração acumulada ao longo de um ano:
 
 $$E_{anual} (kWh/ano) = E_{diaria} \times 365$$
 
-Onde:
-* $A_{total} = \text{Pixels de Painel} \times \text{GSD}^2$ (Área em $m^2$).
-* $\eta$: Eficiência média nominal dos módulos fotovoltaicos (padrão: $18.5\%$).
-* $I_{local}$: Média de irradiação diária da localidade (padrão: $5.4 \text{ kWh/m²/dia}$ para Dourados-MS).
-* $PR$: Performance Ratio (Perdas acumuladas). Padrão de literatura e mercado de $75\%$ ($0.75$).
+### 6. Estimativa de Módulos Discretos ($N_{mod}$)
+Estima o número físico de painéis comerciais padrão instalados (ex: módulos de $550\text{ Wp}$ com área unitária de $2,2\text{ m}^2$):
+
+$$N_{mod} = \text{round}\left(\frac{S_{pv}}{2,2}\right)$$

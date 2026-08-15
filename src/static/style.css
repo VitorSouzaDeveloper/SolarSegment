@@ -295,6 +295,25 @@ input[type="range"]::-webkit-slider-thumb:hover {
     box-shadow: 0 0 5px var(--solar-glow);
 }
 
+.text-input-field {
+    width: 100%;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-md);
+    outline: none;
+    transition: var(--transition);
+}
+
+.text-input-field:focus {
+    border-color: var(--solar);
+    background: rgba(251, 191, 36, 0.03);
+    box-shadow: 0 0 8px var(--solar-glow);
+}
+
 .input-unit-container {
     display: flex;
     align-items: center;
