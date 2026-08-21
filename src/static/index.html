@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2.6">
 </head>
 <body>
     <header class="app-header">
@@ -70,13 +70,13 @@
                                 <span class="info-tooltip" title="Ângulo de inclinação dos módulos/telhado em relação ao plano horizontal. Usado para corrigir a área ortogonal real (S_pv)."><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
-                                <input type="range" id="tilt_angle" name="tilt_angle" min="0" max="60" step="1" value="20">
-                                <span class="range-val" id="tilt_angle-val">20 °</span>
+                                <input type="range" id="tilt_angle" name="tilt_angle" min="0" max="60" step="1" value="25">
+                                <span class="range-val" id="tilt_angle-val">25 °</span>
                             </div>
                             <div class="quick-presets">
                                 <button type="button" class="preset-btn" data-type="tilt" data-value="0">Plano (0°)</button>
-                                <button type="button" class="preset-btn active" data-type="tilt" data-value="20">Residencial (20°)</button>
-                                <button type="button" class="preset-btn" data-type="tilt" data-value="22">Ideal MS (22°)</button>
+                                <button type="button" class="preset-btn" data-type="tilt" data-value="20">Residencial (20°)</button>
+                                <button type="button" class="preset-btn active" data-type="tilt" data-value="25">Padrão (25°)</button>
                             </div>
                         </div>
 
@@ -134,6 +134,37 @@
                                 <span class="range-val" id="pr-val">75.0 %</span>
                             </div>
                         </div>
+
+                        <!-- Especificações do Módulo & Fator de Ocupação -->
+                        <div class="form-control">
+                            <label for="module_area_m2">
+                                Área Unitária da Placa (m²)
+                                <span class="info-tooltip" title="Área física individual de 1 módulo fotovoltaico. Ex: 2.0 m² (450W), 2.3 m² (550W), 2.6 m² (600W+)"><i class="fa-solid fa-circle-info"></i></span>
+                            </label>
+                            <div class="range-container">
+                                <input type="range" id="module_area_m2" min="1.50" max="3.00" step="0.05" value="2.30">
+                                <div class="input-unit-container">
+                                    <input type="number" id="module_area-val-input" name="module_area_m2" min="1.0" max="4.0" step="0.01" value="2.30" class="range-val-input">
+                                    <span class="unit-label">m²</span>
+                                </div>
+                            </div>
+                            <div class="quick-presets">
+                                <button type="button" class="preset-btn" data-type="module_area" data-value="1.95">400W (1.95 m²)</button>
+                                <button type="button" class="preset-btn active" data-type="module_area" data-value="2.30">550W (2.30 m²)</button>
+                                <button type="button" class="preset-btn" data-type="module_area" data-value="2.60">600W+ (2.60 m²)</button>
+                            </div>
+                        </div>
+
+                        <div class="form-control">
+                            <label for="packing_factor">
+                                Fator de Preenchimento / Frestas
+                                <span class="info-tooltip" title="Desconto de molduras de alumínio e espaçamento entre trilhos de fixação no telhado (Típico: 88% a 92%)"><i class="fa-solid fa-circle-info"></i></span>
+                            </label>
+                            <div class="range-container">
+                                <input type="range" id="packing_factor" name="packing_factor" min="0.75" max="1.00" step="0.01" value="0.90">
+                                <span class="range-val" id="packing_factor-val">90 %</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Hiperparâmetros de Segmentação e Visão -->
@@ -146,8 +177,8 @@
                                 <span class="info-tooltip" title="Probabilidade mínima de ativação da U-Net para classificar o pixel como painel solar"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
-                                <input type="range" id="threshold" name="threshold" min="0.1" max="0.9" step="0.05" value="0.55">
-                                <span class="range-val" id="threshold-val">0.55</span>
+                                <input type="range" id="threshold" name="threshold" min="0.1" max="0.9" step="0.05" value="0.65">
+                                <span class="range-val" id="threshold-val">0.65</span>
                             </div>
                         </div>
 
@@ -183,9 +214,9 @@
                     <div class="drop-zone-content">
                         <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
                         <h3>Arraste e solte uma imagem aérea ou ortofoto</h3>
-                        <p>Formatos suportados: PNG, JPG, JPEG. Resoluções urbanas de satélite, drone ou ortofotos municipais.</p>
+                        <p>Formatos suportados: GeoTIFF (.tif, .tiff), JP2, PNG, JPG, JPEG. Imagens de satélite, drone ou ortofotos.</p>
                         <span class="file-btn">Selecionar Arquivo</span>
-                        <input type="file" id="file-input" accept="image/*" style="display: none;">
+                        <input type="file" id="file-input" accept="image/*,.tif,.tiff,.geotiff,.jp2,.jpg,.jpeg,.png" style="display: none;">
                     </div>
                     <div class="preview-container" id="upload-preview-container" style="display: none;">
                         <img id="upload-preview" src="" alt="Preview da imagem">
@@ -308,6 +339,119 @@
                     </div>
                 </div>
 
+                <!-- Estimativa Comparativa por Tipologia de Painel -->
+                <div class="panel-card breakdown-card">
+                    <div class="panel-header">
+                        <div class="title-with-desc">
+                            <i class="fa-solid fa-table-list text-solar"></i>
+                            <h2>Quadro Comparativo por Tipo de Painel</h2>
+                            <p>Dimensionamento estimado da quantidade de placas, potência de pico e geração mensal para cada categoria de mercado baseados na área útil de silício (<span id="breakdown-area-ref">0.00</span> m²).</p>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="breakdown-table" id="panel-breakdown-table">
+                            <thead>
+                                <tr>
+                                    <th>Tipologia & Tecnologia</th>
+                                    <th>Potência Unit.</th>
+                                    <th>Área Típica</th>
+                                    <th>Qtd. Placas Estimada</th>
+                                    <th>Potência Total</th>
+                                    <th>Geração Estimada</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="panel-breakdown-body">
+                                <tr>
+                                    <td>
+                                        <div class="panel-type-cell">
+                                            <span class="panel-type-name">Residencial Compacto</span>
+                                            <span class="panel-type-tech">Policristalino / Mono 60 céls • Instalações compactas ou telhados antigos</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-power">340 W</span></td>
+                                    <td><span class="metric-highlight">1.70 m²</span></td>
+                                    <td><span class="badge-modules">- <small>placas</small></span></td>
+                                    <td><span class="metric-highlight">- kWp</span></td>
+                                    <td><span class="metric-highlight">- kWh/mês</span></td>
+                                    <td><button type="button" class="btn-select-preset" data-power="340" data-area="1.70">Aplicar</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="panel-type-cell">
+                                            <span class="panel-type-name">Residencial Moderno</span>
+                                            <span class="panel-type-tech">Half-Cell 108 céls M10 • Padrão residencial atual</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-power">415 W</span></td>
+                                    <td><span class="metric-highlight">1.95 m²</span></td>
+                                    <td><span class="badge-modules">- <small>placas</small></span></td>
+                                    <td><span class="metric-highlight">- kWp</span></td>
+                                    <td><span class="metric-highlight">- kWh/mês</span></td>
+                                    <td><button type="button" class="btn-select-preset" data-power="415" data-area="1.95">Aplicar</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="panel-type-cell">
+                                            <span class="panel-type-name">Comercial / Médio Porte</span>
+                                            <span class="panel-type-tech">Half-Cell 120/144 céls • Telhados comerciais e residenciais amplos</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-power">460 W</span></td>
+                                    <td><span class="metric-highlight">2.15 m²</span></td>
+                                    <td><span class="badge-modules">- <small>placas</small></span></td>
+                                    <td><span class="metric-highlight">- kWp</span></td>
+                                    <td><span class="metric-highlight">- kWh/mês</span></td>
+                                    <td><button type="button" class="btn-select-preset" data-power="460" data-area="2.15">Aplicar</button></td>
+                                </tr>
+                                <tr class="active-scenario">
+                                    <td>
+                                        <div class="panel-type-cell">
+                                            <span class="panel-type-name">Comercial Padrão Mercado</span>
+                                            <span class="panel-type-tech">Half-Cell 144 céls M10 • Mais vendido no Brasil</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-power">550 W</span></td>
+                                    <td><span class="metric-highlight">2.30 m²</span></td>
+                                    <td><span class="badge-modules">- <small>placas</small></span></td>
+                                    <td><span class="metric-highlight">- kWp</span></td>
+                                    <td><span class="metric-highlight">- kWh/mês</span></td>
+                                    <td><button type="button" class="btn-select-preset selected" data-power="550" data-area="2.30"><i class="fa-solid fa-check"></i> Ativo</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="panel-type-cell">
+                                            <span class="panel-type-name">Alta Potência Industrial</span>
+                                            <span class="panel-type-tech">Half-Cell 120/132 céls G12 • Galpões e usinas de solo</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-power">600 W</span></td>
+                                    <td><span class="metric-highlight">2.60 m²</span></td>
+                                    <td><span class="badge-modules">- <small>placas</small></span></td>
+                                    <td><span class="metric-highlight">- kWp</span></td>
+                                    <td><span class="metric-highlight">- kWh/mês</span></td>
+                                    <td><button type="button" class="btn-select-preset" data-power="600" data-area="2.60">Aplicar</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="panel-type-cell">
+                                            <span class="panel-type-name">Ultra Potência / N-Type TOPCon</span>
+                                            <span class="panel-type-tech">Bifacial 132 céls G12 TOPCon • Última geração de alta eficiência</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-power">680 W</span></td>
+                                    <td><span class="metric-highlight">2.85 m²</span></td>
+                                    <td><span class="badge-modules">- <small>placas</small></span></td>
+                                    <td><span class="metric-highlight">- kWp</span></td>
+                                    <td><span class="metric-highlight">- kWh/mês</span></td>
+                                    <td><button type="button" class="btn-select-preset" data-power="680" data-area="2.85">Aplicar</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- Galeria de Tiles Fragmentados -->
                 <div class="panel-card gallery-card">
                     <div class="panel-header">
@@ -372,6 +516,6 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2.7"></script>
 </body>
 </html>

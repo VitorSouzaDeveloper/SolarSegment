@@ -168,7 +168,7 @@ class SolarPanelDataset(Dataset):
 # ==========================================
 # 4. PIPELINE DE TREINAMENTO COM MÉTRICAS FORMAIS
 # ==========================================
-def train_unet(num_epochs=50, batch_size=2, lr=1e-4, pos_weight=5.0):
+def train_unet(num_epochs=40, batch_size=4, lr=1e-4, pos_weight=5.0, resume=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Iniciando treinamento da U-Net no dispositivo: {device}")
     
@@ -202,18 +202,56 @@ def train_unet(num_epochs=50, batch_size=2, lr=1e-4, pos_weight=5.0):
     
     model = UNet(in_channels=3, out_channels=1).to(device)
     
+    save_path = os.path.join(models_dir, "unet_solar.pth")
+    best_save_path = os.path.join(models_dir, "unet_solar_best.pth")
+    
+    best_dice = 0.0
+    
+    # Continual Learning / Fine-Tuning: Carrega pesos pré-existentes para nunca perder o aprendizado anterior
+    if resume:
+        load_candidate = best_save_path if os.path.exists(best_save_path) else (save_path if os.path.exists(save_path) else None)
+        if load_candidate:
+            try:
+                state_dict = torch.load(load_candidate, map_location=device)
+                model.load_state_dict(state_dict)
+                print(f"[CONTINUAL LEARNING] Pesos prévios carregados com sucesso de: {load_candidate}")
+                
+                # Avalia baseline antes de iniciar novas épocas
+                model.eval()
+                eval_transform = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
+                eval_dataset = SolarPanelDataset(train_img_dir, train_mask_dir, transform=eval_transform)
+                dices = []
+                with torch.no_grad():
+                    for idx_sample in range(len(eval_dataset)):
+                        im_eval, mk_eval = eval_dataset[idx_sample]
+                        if mk_eval.dim() == 2:
+                            mk_eval = mk_eval.unsqueeze(0).unsqueeze(0)
+                        elif mk_eval.dim() == 3:
+                            mk_eval = mk_eval.unsqueeze(0)
+                        im_eval = im_eval.unsqueeze(0).to(device)
+                        mk_eval = mk_eval.to(device)
+                        
+                        out_eval = model(im_eval)
+                        pred_eval = (torch.sigmoid(out_eval) > 0.5).float()
+                        tp = (pred_eval * mk_eval).sum().item()
+                        fp = (pred_eval * (1 - mk_eval)).sum().item()
+                        fn = ((1 - pred_eval) * mk_eval).sum().item()
+                        d = 2 * tp / (2 * tp + fp + fn + 1e-8)
+                        dices.append(d)
+                best_dice = float(np.mean(dices)) if len(dices) > 0 else 0.0
+                print(f"[BASELINE AVALIADO] Dice atual do modelo: {best_dice:.4f}")
+            except Exception as e:
+                print(f"[AVISO] Não foi possível carregar checkpoint prévio: {e}. Iniciando do zero.")
+    
     # Função de Perda Composta (wBCE + Dice)
     criterion = CompoundSolarLoss(alpha=0.5, beta=0.5, pos_weight=pos_weight)
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
     
-    best_dice = 0.0
-    save_path = os.path.join(models_dir, "unet_solar.pth")
-    best_save_path = os.path.join(models_dir, "unet_solar_best.pth")
-    
     print("=" * 70)
     print("INÍCIO DO TREINAMENTO SUPERVISIONADO U-NET (TCC II)")
-    print(f"Loss: Compound (wBCE [pos_weight={pos_weight}] + Dice) | Épocas: {num_epochs}")
+    print(f"Loss: Compound (wBCE [pos_weight={pos_weight}] + Dice) | Épocas: {num_epochs} | Batch: {batch_size}")
+    print(f"Baseline Dice a superar: {best_dice:.4f}")
     print("=" * 70)
     
     for epoch in range(num_epochs):
@@ -267,19 +305,24 @@ def train_unet(num_epochs=50, batch_size=2, lr=1e-4, pos_weight=5.0):
         avg_prec = epoch_prec / num_batches
         avg_rec = epoch_recall / num_batches
         
-        print(f"Época [{epoch+1:02d}/{num_epochs:02d}] | Loss: {avg_loss:.4f} | IoU: {avg_iou:.4f} | Dice (F1): {avg_dice:.4f} | Prec: {avg_prec:.4f} | Rec: {avg_rec:.4f}")
+        print(f"Época [{epoch+1:02d}/{num_epochs:02d}] | Loss: {avg_loss:.4f} | IoU: {avg_iou:.4f} | Dice (F1): {avg_dice:.4f} | Prec: {avg_prec:.4f} | Rec: {avg_rec:.4f}", flush=True)
         
-        # Salva o melhor modelo
-        if avg_dice > best_dice:
+        # Salva o melhor modelo sempre que superar a melhor métrica histórica
+        if avg_dice >= best_dice:
             best_dice = avg_dice
             torch.save(model.state_dict(), best_save_path)
+            torch.save(model.state_dict(), save_path)
             
-    # Salva o checkpoint final
-    torch.save(model.state_dict(), save_path)
+    # Garante que ambos os checkpoints fiquem disponíveis
+    if not os.path.exists(best_save_path):
+        torch.save(model.state_dict(), best_save_path)
+    if not os.path.exists(save_path):
+        torch.save(model.state_dict(), save_path)
+        
     print("=" * 70)
     print(f"Treinamento finalizado com sucesso!")
     print(f"Modelo final salvo em: {save_path}")
-    print(f"Melhor modelo salvo em: {best_save_path} (Melhor Dice: {best_dice:.4f})")
+    print(f"Melhor modelo preservado em: {best_save_path} (Melhor Dice: {best_dice:.4f})")
     print("=" * 70)
 
 if __name__ == "__main__":

@@ -29,66 +29,80 @@ def create_hann_window_2d(size):
     hann_2d = np.clip(hann_2d, 1e-4, 1.0)
     return hann_2d.astype(np.float32)
 
+STANDARD_PANEL_TYPES = [
+    {"category": "Residencial Compacto", "tech": "Policristalino / Mono 60 céls", "power_w": 340, "area_m2": 1.70, "desc": "Residencial compacto"},
+    {"category": "Residencial Moderno", "tech": "Half-Cell 108 céls M10", "power_w": 415, "area_m2": 1.95, "desc": "Padrão residencial atual"},
+    {"category": "Comercial / Médio Porte", "tech": "Half-Cell 120/144 céls", "power_w": 460, "area_m2": 2.15, "desc": "Comercial e residencial amplo"},
+    {"category": "Comercial Padrão Mercado", "tech": "Half-Cell 144 céls M10", "power_w": 550, "area_m2": 2.30, "desc": "Padrão mais vendido no Brasil"},
+    {"category": "Alta Potência Industrial", "tech": "Half-Cell 120/132 céls G12", "power_w": 600, "area_m2": 2.60, "desc": "Galpões e usinas de solo"},
+    {"category": "Ultra Potência / N-Type TOPCon", "tech": "Bifacial 132 céls G12 TOPCon", "power_w": 680, "area_m2": 2.85, "desc": "Última geração TOPCon"}
+]
+
+def calculate_panel_types_breakdown(s_pv: float, i_local: float = 5.4, pr: float = 0.75, packing_factor: float = 0.90):
+    breakdown = []
+    effective_area = s_pv * packing_factor
+    for p in STANDARD_PANEL_TYPES:
+        modules_dense = int(round(effective_area / p["area_m2"])) if p["area_m2"] > 0 else 0
+        modules_pure = int(round(s_pv / p["area_m2"])) if p["area_m2"] > 0 else 0
+        kwp = (modules_dense * p["power_w"]) / 1000.0
+        daily_kwh = kwp * i_local * pr
+        monthly_kwh = daily_kwh * 30.0
+        annual_kwh = daily_kwh * 365.0
+        breakdown.append({
+            "category": p["category"],
+            "tech": p["tech"],
+            "power_w": p["power_w"],
+            "area_m2": p["area_m2"],
+            "desc": p["desc"],
+            "modules_estimated": modules_dense,
+            "modules_pure": modules_pure,
+            "installed_kwp": round(kwp, 2),
+            "daily_kwh": round(daily_kwh, 2),
+            "monthly_kwh": round(monthly_kwh, 2),
+            "annual_kwh": round(annual_kwh, 2)
+        })
+    return breakdown
+
 def calculate_power_estimation(
     total_pixels,
     gsd,
-    tilt_deg=20.0,
+    tilt_deg=25.0,
     lat_deg=-22.22,
     eta=0.185,
     i_local=5.4,
     pr=0.75,
     module_power_w=550.0,
-    module_area_m2=2.2,
+    module_area_m2=2.3,
     use_tilt_correction=True
 ):
     """
     Modelo matemático com correção geométrica de inclinação e estimativa fotovoltaica (TCC II).
-    
-    Parâmetros:
-    - total_pixels: Quantidade de pixels classificados como painel solar.
-    - gsd: Ground Sample Distance em metros/pixel.
-    - tilt_deg (β): Ângulo de inclinação do telhado/módulo em graus (padrão 20.0°).
-    - lat_deg (φ): Latitude local em graus (padrão -22.22° para Dourados - MS).
-    - eta (η): Eficiência média comercial dos módulos (padrão 18.5%).
-    - i_local: Irradiação solar diária média (kWh/m²/dia).
-    - pr: Performance Ratio do sistema (padrão 75%).
-    - module_power_w: Potência nominal do módulo padrão em Watts (550 W).
-    - module_area_m2: Área física do módulo padrão em m² (~2.2 m²).
-    - use_tilt_correction: Ativa a correção geométrica de área real inclinada.
     """
     # 1. Área Projetada na Ortofoto (A_proj) em m²
     area_per_pixel = gsd * gsd
     a_proj = total_pixels * area_per_pixel
     
     # 2. Correção Geométrica de Inclinação para Área Real do Módulo (S_pv)
-    # Em ortofotos aéreas verticais, a câmera captura a projeção ortogonal no plano horizontal (A_proj).
-    # Como os módulos solares são instalados com inclinação β (tilt angle), a área real dos módulos é:
-    # S_pv = A_proj / cos(β)
     if use_tilt_correction and tilt_deg > 0:
         beta_rad = math.radians(tilt_deg)
-        # Fator geométrico exato de inclinação de telhado: 1 / cos(β)
         cos_beta = math.cos(beta_rad)
-        if cos_beta > 0.1:
-            correction_factor = 1.0 / cos_beta
-        else:
-            correction_factor = 1.0
-            
+        correction_factor = 1.0 / cos_beta if cos_beta > 0.1 else 1.0
         correction_factor = max(1.0, float(correction_factor))
         s_pv = a_proj * correction_factor
     else:
         correction_factor = 1.0
         s_pv = a_proj
         
-    # 3. Potência Pico Instalada (kWp) baseada na área real dos módulos
-    # P_pico = S_pv (m²) * eta * Irradiância STC (1 kW/m²)
+    # 3. Potência Pico Instalada (kWp)
     p_pico = s_pv * eta
     
     # 4. Geração Diária e Anual de Energia (kWh)
     e_diaria = p_pico * i_local * pr
     e_anual = e_diaria * 365.0
     
-    # 5. Estimativa de Módulos Físicos Discretos (~550 Wp)
-    estimated_modules = int(round(s_pv / module_area_m2)) if module_area_m2 > 0 else 0
+    # 5. Estimativa de Módulos
+    estimated_modules = int(round((s_pv * 0.90) / module_area_m2)) if module_area_m2 > 0 else 0
+    breakdown = calculate_panel_types_breakdown(s_pv, i_local, pr, packing_factor=0.90)
     
     return {
         "a_proj_m2": a_proj,
@@ -97,7 +111,8 @@ def calculate_power_estimation(
         "p_pico_kwp": p_pico,
         "e_diaria_kwh": e_diaria,
         "e_anual_kwh": e_anual,
-        "estimated_modules": estimated_modules
+        "estimated_modules": estimated_modules,
+        "panel_types_breakdown": breakdown
     }
 
 def calculate_estimation_errors(estimated, true_val):
@@ -123,7 +138,7 @@ def predict_sliding_window(
     device: torch.device,
     tile_size: int = 512,
     overlap_ratio: float = 0.25,
-    threshold: float = 0.55
+    threshold: float = 0.65
 ):
     """
     Realiza inferência via Janela Deslizante (Sliding Window) com sobreposição e
@@ -144,17 +159,19 @@ def predict_sliding_window(
     
     hann_weight = create_hann_window_2d(tile_size)
     
-    x_coords = list(range(0, width, stride))
-    y_coords = list(range(0, height, stride))
-    
-    # Garante cobertura total até a última borda
-    if len(x_coords) == 0 or x_coords[-1] + tile_size < width:
-        x_coords.append(max(0, width - tile_size))
-    if len(y_coords) == 0 or y_coords[-1] + tile_size < height:
-        y_coords.append(max(0, height - tile_size))
-        
-    x_coords = sorted(list(set(x_coords)))
-    y_coords = sorted(list(set(y_coords)))
+    def get_axis_coords(dim_size, t_size, st):
+        if dim_size <= t_size:
+            return [0]
+        coords = []
+        pos = 0
+        while pos + t_size < dim_size:
+            coords.append(pos)
+            pos += st
+        coords.append(max(0, dim_size - t_size))
+        return sorted(list(set(coords)))
+
+    x_coords = get_axis_coords(width, tile_size, stride)
+    y_coords = get_axis_coords(height, tile_size, stride)
     
     model.eval()
     with torch.no_grad():
@@ -259,7 +276,7 @@ def inference_and_estimation():
         
         # 1. Inferência com Janela Deslizante e Fusão Suave
         prob_map, pred_mask_uint8 = predict_sliding_window(
-            image, model, device, tile_size=512, overlap_ratio=0.25, threshold=0.55
+            image, model, device, tile_size=512, overlap_ratio=0.25, threshold=0.65
         )
         
         # 2. Pós-processamento Morfológico (Fechamento)
@@ -289,7 +306,7 @@ def inference_and_estimation():
     res = calculate_power_estimation(
         total_pixels=total_solar_pixels,
         gsd=gsd,
-        tilt_deg=20.0,      # Inclinação típica no MS
+        tilt_deg=25.0,      # Inclinação típica no MS (25°)
         lat_deg=-22.22,     # Dourados - MS
         eta=0.185,
         i_local=5.4,
@@ -299,19 +316,20 @@ def inference_and_estimation():
         use_tilt_correction=True
     )
     
-    print("\n" + "=" * 65)
+    print("\n" + "=" * 85)
     print("RELATÓRIO DE ESTIMATIVA DE GERAÇÃO FOTOVOLTAICA (TCC II)")
-    print("=" * 65)
+    print("=" * 85)
     print(f"Área Projetada na Ortofoto (A_proj): {res['a_proj_m2']:.2f} m²")
     print(f"Área Real Corrigida do Módulo (S_pv): {res['s_pv_m2']:.2f} m² (Fator: x{res['tilt_factor']:.3f})")
-    print(f"Inclinação do Telhado (β): 20.0° | Latitude (φ): -22.22°")
+    print(f"Inclinação do Telhado (β): 25.0° | Latitude (φ): -22.22°")
     print(f"Eficiência (η): 18.5% | Irradiação: 5.4 kWh/m²/dia | PR: 75.0%")
-    print("-" * 65)
-    print(f"Módulos Estimados (~550 Wp): ~{res['estimated_modules']} painéis")
-    print(f"POTÊNCIA PICO INSTALADA (P_pico): {res['p_pico_kwp']:.2f} kWp")
-    print(f"GERAÇÃO DIÁRIA ESTIMADA (E_diaria): {res['e_diaria_kwh']:.2f} kWh/dia")
-    print(f"GERAÇÃO ANUAL ESTIMADA (E_anual): {res['e_anual_kwh']:.2f} kWh/ano")
-    print("=" * 65)
+    print("-" * 85)
+    print("ESTIMATIVA COMPARATIVA POR TIPOLOGIA DE PAINEL FOTOVOLTAICO:")
+    print(f"{'Categoria / Tecnologia':<28} | {'Potência':<8} | {'Área':<7} | {'Qtd Placas':<10} | {'Potência (kWp)':<14} | {'Geração/Mês':<12}")
+    print("-" * 85)
+    for p in res["panel_types_breakdown"]:
+        print(f"{p['category']:<28} | {p['power_w']:>4} W   | {p['area_m2']:>4.2f} m² | {p['modules_estimated']:>6} un  | {p['installed_kwp']:>8.2f} kWp   | {p['monthly_kwh']:>7.1f} kWh")
+    print("=" * 85)
 
 if __name__ == "__main__":
     inference_and_estimation()

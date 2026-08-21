@@ -76,6 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const metaActiveTiles = document.getElementById('meta-active-tiles');
     const metaPixels = document.getElementById('meta-pixels');
     const metaTiltFactorVal = document.getElementById('meta-tilt-factor-val');
+    const moduleAreaSlider = document.getElementById('module_area_m2');
+    const moduleAreaInput = document.getElementById('module_area-val-input');
+    const packingFactorInput = document.getElementById('packing_factor');
+    const packingFactorVal = document.getElementById('packing_factor-val');
 
     let selectedFile = null;
 
@@ -118,6 +122,26 @@ document.addEventListener('DOMContentLoaded', () => {
         prVal.textContent = (parseFloat(prInput.value) * 100).toFixed(1) + ' %';
     });
 
+    if (moduleAreaSlider && moduleAreaInput) {
+        moduleAreaSlider.addEventListener('input', () => {
+            moduleAreaInput.value = parseFloat(moduleAreaSlider.value).toFixed(2);
+            updatePresetActive('module_area', moduleAreaSlider.value);
+        });
+        moduleAreaInput.addEventListener('input', () => {
+            const val = parseFloat(moduleAreaInput.value);
+            if (!isNaN(val) && val >= 1.0 && val <= 4.0) {
+                moduleAreaSlider.value = val;
+                updatePresetActive('module_area', val);
+            }
+        });
+    }
+
+    if (packingFactorInput && packingFactorVal) {
+        packingFactorInput.addEventListener('input', () => {
+            packingFactorVal.textContent = (parseFloat(packingFactorInput.value) * 100).toFixed(0) + ' %';
+        });
+    }
+
     function updatePresetActive(type, value) {
         presetBtns.forEach(btn => {
             if (btn.dataset.type === type) {
@@ -147,6 +171,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (type === 'tilt') {
                 tiltSlider.value = val;
                 tiltSlider.dispatchEvent(new Event('input'));
+            } else if (type === 'module_area' && moduleAreaInput) {
+                moduleAreaInput.value = val;
+                moduleAreaInput.dispatchEvent(new Event('input'));
             }
         });
     });
@@ -186,21 +213,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (files.length === 0) return;
         const file = files[0];
         
-        if (!file.type.startsWith('image/')) {
-            alert('Por favor, selecione um arquivo de imagem válido (PNG, JPG ou JPEG).');
+        const validExtensions = ['.png', '.jpg', '.jpeg', '.tif', '.tiff', '.geotiff', '.jp2'];
+        const fileNameLower = file.name.toLowerCase();
+        const hasValidExt = validExtensions.some(ext => fileNameLower.endsWith(ext));
+        
+        if (!file.type.startsWith('image/') && !hasValidExt) {
+            alert('Por favor, selecione um arquivo de imagem válido (GeoTIFF .tif/.tiff, JP2, PNG, JPG ou JPEG).');
             return;
         }
 
         selectedFile = file;
-        previewFilename.textContent = file.name;
+        previewFilename.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
         
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            uploadPreview.src = e.target.result;
+        const isTiffOrJp2 = fileNameLower.endsWith('.tif') || fileNameLower.endsWith('.tiff') || fileNameLower.endsWith('.jp2');
+        
+        if (isTiffOrJp2) {
+            // Browsers don't support native TIFF/JP2 rendering in <img>, so show SVG placeholder
+            uploadPreview.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="45%" fill="%23fbbf24" font-family="sans-serif" font-size="20" font-weight="bold" text-anchor="middle">GeoTIFF / Raster de Alta Precisão</text><text x="50%" y="65%" fill="%2394a3b8" font-family="sans-serif" font-size="14" text-anchor="middle">Pronto para inferência U-Net</text></svg>';
             uploadPreviewContainer.style.display = 'flex';
             runBtn.disabled = false;
-        };
-        reader.readAsDataURL(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadPreview.src = e.target.result;
+                uploadPreviewContainer.style.display = 'flex';
+                runBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
     }
 
     function resetUpload() {
@@ -228,13 +268,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!step) return;
 
         if (state === 'active') {
-            step.classList.remove('completed');
             step.classList.add('active');
+            step.classList.remove('completed');
         } else if (state === 'completed') {
             step.classList.remove('active');
             step.classList.add('completed');
-        } else {
-            step.classList.remove('active', 'completed');
         }
     }
 
@@ -244,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     runBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
 
+        runBtn.disabled = true;
         resultsPanel.style.display = 'none';
         pipelinePanel.style.display = 'block';
         pipelinePanel.scrollIntoView({ behavior: 'smooth' });
@@ -275,7 +314,8 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('overlap', overlapInput.checked);
         formData.append('pr', prInput.value);
         formData.append('module_power_w', '550.0');
-        formData.append('module_area_m2', '2.20');
+        formData.append('module_area_m2', moduleAreaInput ? moduleAreaInput.value : '2.30');
+        formData.append('packing_factor', packingFactorInput ? packingFactorInput.value : '0.90');
 
         const startTime = Date.now();
 
@@ -365,7 +405,82 @@ document.addEventListener('DOMContentLoaded', () => {
         metaPixels.textContent = data.results.total_solar_pixels.toLocaleString('pt-BR');
         metaTiltFactorVal.textContent = `x${data.results.tilt_factor.toFixed(3)} (${data.results.tilt_angle > 0 && data.metadata.use_tilt_correction ? 'Jiao et al.' : 'Horizontal'})`;
 
-        // 4. Galeria de Tiles
+        // 4. Tabela Comparativa de Tipologias de Painel
+        const breakdownBody = document.getElementById('panel-breakdown-body');
+        const breakdownAreaRef = document.getElementById('breakdown-area-ref');
+        if (breakdownAreaRef) breakdownAreaRef.textContent = data.results.area_total_m2.toFixed(2);
+        
+        if (breakdownBody && data.panel_types_breakdown) {
+            breakdownBody.innerHTML = '';
+            const currentSelectedArea = parseFloat(moduleAreaInput ? moduleAreaInput.value : 2.30);
+            
+            data.panel_types_breakdown.forEach(pt => {
+                const isSelected = Math.abs(pt.area_m2 - currentSelectedArea) < 0.08;
+                const tr = document.createElement('tr');
+                if (isSelected) tr.className = 'active-scenario';
+                
+                tr.innerHTML = `
+                    <td>
+                        <div class="panel-type-cell">
+                            <span class="panel-type-name">${pt.category}</span>
+                            <span class="panel-type-tech">${pt.tech} &bull; ${pt.desc}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge-power">${pt.power_w} W</span>
+                    </td>
+                    <td>
+                        <span class="metric-highlight">${pt.area_m2.toFixed(2)} m²</span>
+                    </td>
+                    <td>
+                        <span class="badge-modules">
+                            ${pt.modules_estimated} <small>placas</small>
+                        </span>
+                    </td>
+                    <td>
+                        <span class="metric-highlight">${pt.installed_kwp.toFixed(2)} kWp</span>
+                    </td>
+                    <td>
+                        <span class="metric-highlight">${pt.monthly_kwh.toFixed(1)} kWh/mês</span>
+                    </td>
+                    <td>
+                        <button type="button" class="btn-select-preset ${isSelected ? 'selected' : ''}" 
+                                data-power="${pt.power_w}" data-area="${pt.area_m2}">
+                            ${isSelected ? '<i class="fa-solid fa-check"></i> Ativo' : 'Aplicar'}
+                        </button>
+                    </td>
+                `;
+                
+                const selectBtn = tr.querySelector('.btn-select-preset');
+                selectBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (moduleAreaInput) {
+                        moduleAreaInput.value = pt.area_m2.toFixed(2);
+                        moduleAreaInput.dispatchEvent(new Event('input'));
+                    }
+                    if (moduleAreaSlider) {
+                        moduleAreaSlider.value = pt.area_m2;
+                    }
+                    
+                    document.querySelectorAll('#panel-breakdown-body tr').forEach(r => r.classList.remove('active-scenario'));
+                    document.querySelectorAll('#panel-breakdown-body .btn-select-preset').forEach(b => {
+                        b.classList.remove('selected');
+                        b.innerHTML = 'Aplicar';
+                    });
+                    tr.classList.add('active-scenario');
+                    selectBtn.classList.add('selected');
+                    selectBtn.innerHTML = '<i class="fa-solid fa-check"></i> Ativo';
+                    
+                    metricModules.textContent = pt.modules_estimated;
+                    const purpleTitle = document.querySelector('.metric-card.purple-glow .metric-title');
+                    if (purpleTitle) purpleTitle.innerHTML = `Módulos Estimados (~${pt.power_w}W)`;
+                });
+                
+                breakdownBody.appendChild(tr);
+            });
+        }
+
+        // 5. Galeria de Tiles
         tilesGalleryContainer.innerHTML = '';
         if (!data.tiles_gallery || data.tiles_gallery.length === 0) {
             tilesGalleryContainer.innerHTML = `

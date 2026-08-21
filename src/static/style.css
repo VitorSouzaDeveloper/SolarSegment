@@ -1030,3 +1030,162 @@ input[type="range"]::-webkit-slider-thumb:hover {
     max-height: calc(100vh - 60px);
     height: calc(100vh - 60px);
 }
+
+/* ===================================================
+   Tabela Comparativa por Tipologia de Painel
+   =================================================== */
+.breakdown-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: 1.75rem;
+    margin-bottom: 2rem;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 1.25rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.breakdown-table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9rem;
+    display: table;
+}
+
+.breakdown-table thead {
+    display: table-header-group;
+}
+
+.breakdown-table tbody {
+    display: table-row-group;
+}
+
+.breakdown-table tr {
+    display: table-row;
+}
+
+.breakdown-table th {
+    display: table-cell;
+    background: rgba(15, 23, 42, 0.95);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    white-space: nowrap;
+}
+
+.breakdown-table td {
+    display: table-cell;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: middle;
+    transition: background 0.2s ease;
+}
+
+.breakdown-table tbody tr {
+    transition: var(--transition);
+}
+
+.breakdown-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.breakdown-table tbody tr.active-scenario {
+    background: rgba(251, 191, 36, 0.06);
+    border-left: 3px solid var(--solar);
+}
+
+.panel-type-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.panel-type-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.panel-type-tech {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.badge-power {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--cyan);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-family: monospace;
+    font-weight: 700;
+}
+
+.badge-modules {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--solar);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 800;
+    font-family: monospace;
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.1);
+}
+
+.badge-modules small {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.metric-highlight {
+    font-weight: 700;
+    color: #e2e8f0;
+    font-family: monospace;
+}
+
+.btn-select-preset {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.btn-select-preset:hover {
+    background: var(--solar);
+    color: #000;
+    border-color: var(--solar);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--solar-glow);
+}
+
+.btn-select-preset.selected {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--solar);
+    border-color: var(--solar);
+}
