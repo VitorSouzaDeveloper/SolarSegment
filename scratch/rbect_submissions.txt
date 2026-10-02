@@ -1,0 +1,78 @@
+Submissões
+Usuário
+Login
+Senha
+Lembrar usuário
+Idioma
+Selecione o idioma
+English
+Español (España)
+Français (Canada)
+Português (Brasil)
+Conteúdo da revista
+Pesquisa
+Escopo da Busca
+Todos
+Autor
+Título
+Resumo
+Termos indexados
+Texto Completo
+Procurar
+Por Edição
+Por Autor
+Por título
+Outras revistas
+Tamanho de fonte
+Informações
+Para leitores  		  Para Autores  		  Para Bibliotecários
+Capa
+Sobre
+Acesso
+Cadastro
+Pesquisa
+Atual
+Anteriores
+Notícias
+Capa  &gt;
+Sobre a revista  &gt;
+Submissões
+Submissões
+Submissões Online
+Diretrizes para Autores  	  Declaração de Direito Autoral  	  Política de Privacidade
+Submissões Online
+Já possui um login/senha de acesso à revista Revista Brasileira de Ensino de Ciência e Tecnologia?
+Acesso
+Não tem login/senha?
+Acesse a página de cadastro
+O cadastro no sistema e posterior acesso, por meio de login e senha, são obrigatórios para a submissão de trabalhos, bem como para acompanhar o processo editorial em curso.
+&nbsp;
+Diretrizes para Autores
+O artigo deve ser elaborado atendendo às normas estabelecidas pela Associação Brasileira de Normas Técnicas (ABNT), escrito no programa Word for Windows e estar formatado de acordo com o   Modelo  para a formatação dos artigos a serem submetidos Revista Brasileira de Ensino de Ciência e Tecnologia.  A submissão de artigo deve ser realizada através do formulário online.  Não serão aceitas submissões por e-mail.
+&nbsp;
+Condições para submissão
+Como parte do processo de submissão, os autores são obrigados a verificar a conformidade da submissão em relação a todos os itens listados a seguir. As submissões que não estiverem de acordo com as normas serão devolvidas aos autores.
+A contribuição é original e inédita, e não está em avaliação para publicação por outra revista nem se trata de uma das várias produções com base na mesma pesquisa, o que caracteriza "fatiamento" de publicações;
+O artigo quando derivado de trabalho apresentado/publicado em evento científico (resumo, resumo expandido ou trabalho completo) apresenta-se em uma versão mais completa, revisada e detalhada. Essa informação está incluída no texto, por meio de nota, e também em “Comentários para o Editor”;
+O artigo se enquadra na categoria de trabalho de pesquisa empírica e/ou teórica, tendo por objeto o processo  de ensino-aprendizagem resultante de uma ação reflexiva, crítica e inovadora para a atuação profissional do docente, nas várias áreas do conhecimento em diversos graus de ensino, apresentando contribuição significativa para a área de Ensino de Ciência e Tecnologia, auxiliando na produção de conhecimento e de novas estratégias pedagógicas ( Observação/Informação:  Outros tipos de categorias de trabalho, como artigos de revisão, relatos de experiência, comunicações e resenhas não serão aceitos);
+Quando tratar-se de artigo que divulga resultados de pesquisa que envolvem seres humanos. As informações referentes aos aspectos éticos estão incluídas no texto e explicitadas na metodologia. O referido parecer consubstanciado aprovado pelo Sistema CEP/Conep (ou documento equivalente de outro país) está incluído, em versão PDF, como documento suplementar;
+O arquivo submetido adota o  Modelo de Artigo  disponibilizado pela RBECT, em Diretrizes para Autores seguindo, rigorosamente, os padrões de estilo e requisitos bibliográficos. Está em formato Microsoft Word (preferencialmente .docx);
+O trabalho contém de  15 a 20 páginas , incluindo resumo (com no máximo 500 palavras, com informações sobre o objetivo, a metodologia, os resultados e as considerações finais), título em inglês e abstract, e as referências bibliográficas, quando possível, indicadas com URLs;
+O artigo não contém identificação de autor(es), assegurando a avaliação às cegas pelos pares e seguindo as instruções disponíveis em  Processo de Avaliação pelos pares ;
+O artigo tem a participação e colaboração de no máximo  5 autores  , sendo  pelo menos um dos autores  doutor  e cada um foi incluído no sistema eletrônico SEER, com seu ORCID iD e os dados completos (nome, instituição/afiliação, e-mails, formação/titulação, país e biografia), obrigatórios no ato de submissão do trabalho;
+Os autores possuem o  ORCID iD , obtido gratuitamente no endereço:  https://orcid.org/register , e a URL completa foi incluída no seu cadastro, acompanhada da expressão  "http://" sem o “S”,  no campo logo após o e-mail (exemplo:  http://orcid.org/0000-0002-1825-0097 );
+Todos os autores indicados contribuíram de forma significativa para a elaboração do artigo. A contribuição de cada autor está indicada, em nota, ao final do texto. Outras pessoas que tenham participado apenas em certos aspectos do projeto de investigação devem ser reconhecidas no texto apenas como colaboradores/as;
+O artigo está em português, espanhol, francês ou inglês. Independentemente do idioma, apresenta título e resumo, seguido de palavras-chave, em português. No caso de artigo em espanhol ou francês, além do resumo em português e em inglês, também foi incluído resumo no idioma escolhido;
+Quando decorrente de trabalhos e atividades financiadas, integral ou parcialmente, por órgãos e agências de fomento, apresenta explicitamente essa informação na seção Agradecimentos, ao final do trabalho, de acordo com a regulamentação própria do órgão/agência financiadora;
+O(s) autor(es) tem(têm) ciência que podem publicar  somente   um artigo a cada 12 meses  na RBECT. Em caso de aprovação de trabalho em período menor a 12 meses, a publicação ficará programada para futuras edições;
+O(s) autor(es) tem(têm) ciência de que para as submissões aprovadas a partir de 01/01/2021, é necessário enviar uma versão do artigo em língua inglesa e uma  declaração de revisão e tradução realizada  por tradutores homologados pelo Conselho Editorial da RBECT (consulte lista  aqui ), cuja despesa de tradução devem ser assumidas pelo(s) autor(es);
+O texto está de acordo com o  Código de Ética na Publicação  da RBECT. A não conformidade com esse código sujeita o trabalho a sua sumária rejeição.
+&nbsp;
+Declaração de Direito Autoral
+Os autores que publicam nesta revista concordam em conceder a essa o direito de primeira publicação. Os autores têm autorização para assumir contratos adicionais, separadamente, para distribuição não-exclusiva da versão do trabalho publicada na RBECT(ex.: publicar em repositório institucional ou como capítulo de livro), com reconhecimento de autoria e publicação inicial nesta revista.  Os artigos publicados são de acesso público, de uso gratuito e atribuições próprias. Assim, os autores mantêm os direitos autorais sobre o trabalho publicado e permitem à RBECT o direito de primeira publicação, sob uma licença Creative Commons - Attribution 4.0 International (CC BY 4.0). Esta licença permite que outros compartilhem e façam uso da informações publicadas, com o devido crédito à criação original.
+&nbsp;
+Política de Privacidade
+Os nomes e endereços informados nesta revista serão usados exclusivamente para os serviços prestados por esta publicação, não sendo disponibilizados para outras finalidades ou a terceiros.
+&nbsp;
+ISSN: 1982-873X
+Av. Sete de Setembro, 3165 - Rebouças CEP 80230-901 - Curitiba - PR - Brasil
