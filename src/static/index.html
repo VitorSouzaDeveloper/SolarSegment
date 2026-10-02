@@ -54,7 +54,8 @@
                                 </div>
                             </div>
                             <div class="quick-presets">
-                                <button type="button" class="preset-btn active" data-type="gsd" data-value="0.0389">Ortofoto (3.89 cm)</button>
+                                <button type="button" class="preset-btn active" data-type="gsd" data-value="0.0389">Dourados (3.89 cm)</button>
+                                <button type="button" class="preset-btn" data-type="gsd" data-value="0.10">Maracaju (10.0 cm)</button>
                                 <button type="button" class="preset-btn" data-type="gsd" data-value="0.2986">Bing Z19 (29.8 cm)</button>
                             </div>
                         </div>
@@ -177,19 +178,19 @@
                                 <span class="info-tooltip" title="Probabilidade mínima de ativação da U-Net para classificar o pixel como painel solar"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
-                                <input type="range" id="threshold" name="threshold" min="0.1" max="0.9" step="0.05" value="0.65">
-                                <span class="range-val" id="threshold-val">0.65</span>
+                                <input type="range" id="threshold" name="threshold" min="0.1" max="0.9" step="0.05" value="0.40">
+                                <span class="range-val" id="threshold-val">0.40</span>
                             </div>
                         </div>
 
                         <div class="form-control">
                             <label for="min_area">
                                 Filtro de Área Mínima (Pixels)
-                                <span class="info-tooltip" title="Remove pequenos ruídos desconectados (Connected Components menores que este valor são descartados)"><i class="fa-solid fa-circle-info"></i></span>
+                                <span class="info-tooltip" title="Descarta ruídos menores que este limiar. Dica: 250 px a 0.0389 m/px ≈ 0.38 m²; 40 px a 0.10 m/px ≈ 0.40 m²"><i class="fa-solid fa-circle-info"></i></span>
                             </label>
                             <div class="range-container">
-                                <input type="range" id="min_area" name="min_area" min="50" max="1000" step="10" value="250">
-                                <span class="range-val" id="min_area-val">250 px</span>
+                                <input type="range" id="min_area" name="min_area" min="10" max="1000" step="5" value="250">
+                                <span class="range-val" id="min_area-val">250 px (~0.38 m²)</span>
                             </div>
                         </div>
 

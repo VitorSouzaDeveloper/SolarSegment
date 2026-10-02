@@ -1,1 +1,26 @@
+# Ambientes virtuais e arquivos locais
+venv/
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Arquivos temporários e testes locais
+scratch/
+.tempmediaStorage/
+.system_generated/
+.user_uploaded/
+
+# Dados temporários pesados de teste (milhares de blocos negativos vazios gerados no split)
+data/processed/test/images/
+data/processed/test/preds/
+data/processed/test/visualizations/
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Escrita de TCC (mantido isolado)
 TCC - Escrita/

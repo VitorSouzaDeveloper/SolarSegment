@@ -84,9 +84,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFile = null;
 
     // --- 1. Sincronização dos Sliders e Valores ---
+    function updateMinAreaDisplay() {
+        const px = parseInt(minAreaInput.value) || 0;
+        const gsd = parseFloat(gsdInput.value) || 0.0389;
+        const m2 = px * (gsd * gsd);
+        minAreaVal.textContent = `${px} px (~${m2 < 0.1 ? m2.toFixed(3) : m2.toFixed(2)} m²)`;
+    }
+
     gsdSlider.addEventListener('input', () => {
         gsdInput.value = parseFloat(gsdSlider.value).toFixed(4);
         updatePresetActive('gsd', gsdSlider.value);
+        updateMinAreaDisplay();
     });
 
     gsdInput.addEventListener('input', () => {
@@ -94,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isNaN(val) && val >= 0.0001 && val <= 5.0) {
             gsdSlider.value = val;
             updatePresetActive('gsd', val);
+            updateMinAreaDisplay();
         }
     });
 
@@ -115,8 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     minAreaInput.addEventListener('input', () => {
-        minAreaVal.textContent = minAreaInput.value + ' px';
+        updateMinAreaDisplay();
     });
+
+    // Inicializa texto da área mínima
+    updateMinAreaDisplay();
 
     prInput.addEventListener('input', () => {
         prVal.textContent = (parseFloat(prInput.value) * 100).toFixed(1) + ' %';
@@ -167,7 +179,31 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (type === 'gsd') {
                 gsdInput.value = val;
-                gsdInput.dispatchEvent(new Event('input'));
+                gsdSlider.value = val;
+                
+                // Ajusta automaticamente a escala de parâmetros recomendada para o município
+                const threshSlider = document.getElementById('threshold');
+                const threshVal = document.getElementById('threshold-val');
+                if (Math.abs(parseFloat(val) - 0.10) < 0.001) {
+                    // Preset Maracaju-MS (GSD 10 cm/px)
+                    latInput.value = '-21.61';
+                    minAreaInput.value = '40'; // 40 px * (0.10)^2 = 0.40 m² (equivalente físico ideal)
+                    if (threshSlider) { threshSlider.value = '0.40'; }
+                    if (threshVal) { threshVal.textContent = '0.40'; }
+                } else if (Math.abs(parseFloat(val) - 0.0389) < 0.001) {
+                    // Preset Dourados-MS (GSD 3.89 cm/px)
+                    latInput.value = '-22.22';
+                    minAreaInput.value = '250'; // 250 px * (0.0389)^2 = 0.38 m²
+                    if (threshSlider) { threshSlider.value = '0.65'; }
+                    if (threshVal) { threshVal.textContent = '0.65'; }
+                } else if (Math.abs(parseFloat(val) - 0.2986) < 0.001) {
+                    // Preset Satélite Bing Z19 (GSD ~30 cm/px)
+                    minAreaInput.value = '10';
+                    if (threshSlider) { threshSlider.value = '0.50'; }
+                    if (threshVal) { threshVal.textContent = '0.50'; }
+                }
+                
+                updateMinAreaDisplay();
             } else if (type === 'tilt') {
                 tiltSlider.value = val;
                 tiltSlider.dispatchEvent(new Event('input'));
@@ -397,7 +433,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3. Metadados do Sistema
         metaFilename.textContent = data.metadata.filename;
-        metaResolution.textContent = `${data.metadata.width} × ${data.metadata.height} px`;
+        const gsdCm = (data.results.gsd * 100).toFixed(1);
+        metaResolution.textContent = `${data.metadata.width} × ${data.metadata.height} px (${gsdCm} cm/px)`;
         metaDevice.textContent = data.metadata.device_used.toUpperCase();
         metaTiltInfo.textContent = `β: ${data.metadata.tilt_angle}° | φ: ${data.metadata.latitude}°`;
         metaTotalTiles.textContent = data.metadata.total_tiles;

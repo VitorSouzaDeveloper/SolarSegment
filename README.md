@@ -156,6 +156,48 @@ Estima a geração acumulada ao longo de um ano:
 $$E_{anual} (kWh/ano) = E_{diaria} \times 365$$
 
 ### 6. Estimativa de Módulos Discretos ($N_{mod}$)
-Estima o número físico de painéis comerciais padrão instalados (ex: módulos de $550\text{ Wp}$ com área unitária de $2,2\text{ m}^2$):
+Estima o número físico de painéis comerciais padrão instalados (ex: módulos de $550\text{ Wp}$ com área unitária de $2,30\text{ m}^2$ e fator de preenchimento de $90\%$):
 
-$$N_{mod} = \text{round}\left(\frac{S_{pv}}{2,2}\right)$$
+$$N_{mod} = \text{round}\left(\frac{S_{pv} \times 0,90}{2,30}\right)$$
+
+---
+
+## 🗺️ Integração Direta com QGIS (Processamento SIG)
+
+O projeto inclui um algoritmo nativo para a **Caixa de Ferramentas de Processamento do QGIS** (`src/qgis_processing_script.py`), permitindo analisar grandes ortofotos municipais (ex: Dourados-MS, Maracaju-MS) diretamente no software SIG:
+
+### Como Instalar no QGIS:
+1. Abra o QGIS (versões 3.x ou 4.x).
+2. Na **Caixa de Ferramentas de Processamento**, clique no ícone do Python $\rightarrow$ **Criar Novo Script a partir do Modelo...** (ou navegue até a pasta de scripts do seu perfil do QGIS).
+3. Copie o arquivo `src/qgis_processing_script.py` para a pasta de scripts:
+   - **Windows:** `%APPDATA%\QGIS\QGIS3\profiles\default\processing\scripts\` (ou `QGIS4`)
+   - **Linux:** `~/.local/share/QGIS/QGIS3/profiles/default/processing/scripts/`
+   - **macOS:** `~/Library/Application Support/QGIS/QGIS3/profiles/default/processing/scripts/`
+4. Na Caixa de Ferramentas, o grupo **SolarSegment** $\rightarrow$ **Detecção de Painéis Solares (U-Net)** estará disponível.
+5. Selecione a ortofoto, use a **Extensão da tela do mapa** para analisar áreas de interesse rapidamente, e o algoritmo gerará uma camada vetorial (Shapefile) com polígonos e todos os atributos fotovoltaicos calculados ($A_{proj}$, $S_{pv}$, $P_{pico}$, $E_{anual}$, $N_{mod}$).
+
+---
+
+## 💻 Guia Rápido: Como Rodar em Qualquer Máquina
+
+```bash
+# 1. Clonar o repositório
+git clone https://github.com/VitorSouzaDeveloper/Implementa--o.git
+cd Implementa--o
+
+# 2. Criar e ativar ambiente virtual
+python -m venv venv
+
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# Linux / macOS:
+source venv/bin/activate
+
+# 3. Instalar dependências
+pip install -r requirements.txt
+
+# 4. Executar a Interface Web (Dashboard)
+python src/web_interface.py
+# Acesse: http://localhost:8000
+```
+
