@@ -8,17 +8,12 @@ import numpy as np
 import cv2
 import torch
 from PIL import Image
-Image.MAX_IMAGE_PIXELS = None
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from torchvision.transforms import v2
 
 app = FastAPI(title="SolarSegment - Visão Computacional & Estimativa Fotovoltaica (TCC II)")
-
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return Response(status_code=204)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
@@ -106,57 +101,37 @@ async def get_index():
     </html>
     """)
 
-def open_geospatial_image(contents: bytes, filename: str = "") -> tuple[Image.Image, float | None]:
-    """Abre qualquer imagem padrão ou formato geoespacial (.tif, .tiff, .jp2, multibanda/16-bit) e extrai o GSD nativo se disponível."""
-    detected_gsd = None
-
-    # 1. Tentativa com Rasterio (suporta GeoTIFFs, JP2 e extração de metadados de projeção/resolução)
+def open_geospatial_image(contents: bytes) -> Image.Image:
+    """Abre qualquer imagem padrão ou formato geoespacial (.tif, .tiff, .jp2, multibanda/16-bit)."""
+    # 1. Tentativa padrão com PIL
     try:
-        import rasterio
-        from rasterio.io import MemoryFile
-        
-        # Garante extensão adequada para o driver virtual do GDAL
-        ext = os.path.splitext(filename)[1].lower() if filename else ".tif"
-        if not ext:
-            ext = ".tif"
-            
-        with MemoryFile(contents, filename=f"dataset{ext}") as memfile:
-            with memfile.open() as src:
-                # Extrai GSD se o raster for georreferenciado e tiver unidades métricas
-                try:
-                    if src.res and len(src.res) >= 2 and src.res[0] > 0:
-                        rx = float(src.res[0])
-                        # Valida se está em escala métrica plausível (ex: 1 cm a 5 metros/pixel)
-                        if 0.005 <= rx <= 5.0:
-                            detected_gsd = rx
-                except Exception:
-                    pass
-
-                if src.count >= 3:
-                    data = src.read([1, 2, 3])
-                    arr = np.transpose(data, (1, 2, 0))
-                elif src.count == 1:
-                    data = src.read(1)
-                    arr = np.stack([data, data, data], axis=-1)
-                else:
-                    data = src.read()
-                    arr = np.transpose(data[:3], (1, 2, 0))
-                    
-                if arr.dtype != np.uint8:
-                    mi, ma = float(arr.min()), float(arr.max())
-                    if ma > mi:
-                        arr = ((arr - mi) / (ma - mi) * 255).astype(np.uint8)
-                    else:
-                        arr = np.zeros_like(arr, dtype=np.uint8)
-                        
-                return Image.fromarray(arr).convert("RGB"), detected_gsd
+        img = Image.open(io.BytesIO(contents))
+        return img.convert("RGB")
     except Exception:
         pass
 
-    # 2. Tentativa com PIL para formatos convencionais (PNG, JPG, JPEG) ou JP2 via OpenJPEG
+    # 2. Tentativa com Rasterio para GeoTIFFs complexos e JP2
     try:
-        img = Image.open(io.BytesIO(contents))
-        return img.convert("RGB"), detected_gsd
+        import rasterio
+        with rasterio.open(io.BytesIO(contents)) as src:
+            if src.count >= 3:
+                data = src.read([1, 2, 3])
+                arr = np.transpose(data, (1, 2, 0))
+            elif src.count == 1:
+                data = src.read(1)
+                arr = np.stack([data, data, data], axis=-1)
+            else:
+                data = src.read()
+                arr = np.transpose(data[:3], (1, 2, 0))
+                
+            if arr.dtype != np.uint8:
+                mi, ma = float(arr.min()), float(arr.max())
+                if ma > mi:
+                    arr = ((arr - mi) / (ma - mi) * 255).astype(np.uint8)
+                else:
+                    arr = np.zeros_like(arr, dtype=np.uint8)
+                    
+            return Image.fromarray(arr).convert("RGB")
     except Exception as e:
         raise ValueError(f"Formato de imagem não suportado ou arquivo corrompido: {e}")
 
@@ -237,7 +212,7 @@ async def analyze(
     gsd: float = Form(0.0389),
     eta: float = Form(0.185),
     i_local: float = Form(5.4),
-    threshold: float = Form(0.40),
+    threshold: float = Form(0.65),
     min_area: int = Form(250),
     tile_size: int = Form(512),
     overlap: bool = Form(True),
@@ -256,28 +231,27 @@ async def analyze(
         
     try:
         contents = await file.read()
-        image, detected_gsd = open_geospatial_image(contents, file.filename)
+        image = open_geospatial_image(contents)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo GeoTIFF/Imagem: {e}")
         
     width, height = image.size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Se o GSD fornecido for o padrão (0.0389) mas o arquivo contiver GSD nativo em metros (ex: JP2 de Maracaju 0.10)
-    # adota automaticamente o GSD do arquivo para evitar erro humano de esquecer de digitar.
-    if detected_gsd is not None and abs(gsd - 0.0389) < 0.0001 and abs(detected_gsd - 0.0389) > 0.005:
-        print(f"[GEOSPATIAL] GSD nativo detectado no raster ({detected_gsd:.4f} m/px) substituiu o valor padrão.")
-        gsd = detected_gsd
-    
-    # Normalização de Escala (Invariância de Resolução GSD & Multi-Escala):
+    # Normalização de Escala (Invariância de Resolução GSD):
     # A U-Net foi calibrada para a escala nominal de ~0.0389 m/pixel.
-    # Em imagens com menor resolução (GSD > 0.06m como Maracaju 0.10m), usamos multi-escala combinada
-    # (Detalhe Fino para casas + Contexto para galpões/usinas).
+    # Ajusta a escala da imagem durante o tiling para que a rede neural sempre observe os painéis
+    # com o campo receptivo ideal, independentemente do DPI (96, 163, 300, etc.) exportado no QGIS.
     nominal_gsd = 0.0389
-    primary_scale = max(0.2, min(5.0, gsd / nominal_gsd))
-    scales_to_run = [primary_scale]
-    if primary_scale > 1.2:
-        scales_to_run.append(max(0.8, primary_scale / 1.85))
+    scale_factor = max(0.2, min(5.0, gsd / nominal_gsd))
+    
+    if abs(scale_factor - 1.0) > 0.08:
+        infer_w = max(tile_size, int(round(width * scale_factor)))
+        infer_h = max(tile_size, int(round(height * scale_factor)))
+        infer_image = image.resize((infer_w, infer_h), Image.Resampling.BILINEAR)
+    else:
+        infer_w, infer_h = width, height
+        infer_image = image
         
     # Configuração de sobreposição (overlap)
     overlap_ratio = 0.25 if overlap else 0.0
@@ -291,6 +265,10 @@ async def analyze(
     
     hann_weight = create_hann_window_2d(tile_size) if overlap else np.ones((tile_size, tile_size), dtype=np.float32)
     
+    # Matrizes de acumulação na resolução de inferência
+    full_prob = np.zeros((infer_h, infer_w), dtype=np.float32)
+    full_weight = np.zeros((infer_h, infer_w), dtype=np.float32)
+    
     # Função auxiliar para gerar coordenadas uniformes sem passos redundantes
     def get_axis_coords(dim_size, t_size, st):
         if dim_size <= t_size:
@@ -303,82 +281,58 @@ async def analyze(
         coords.append(max(0, dim_size - t_size))
         return sorted(list(set(coords)))
 
-    prob_maps = []
+    x_coords = get_axis_coords(infer_w, tile_size, stride)
+    y_coords = get_axis_coords(infer_h, tile_size, stride)
+    
     total_tiles = 0
     candidate_gallery_tiles = []
     max_gallery_tiles = 8
     
-    for s_idx, current_scale in enumerate(scales_to_run):
-        if abs(current_scale - 1.0) > 0.08:
-            infer_w = max(tile_size, int(round(width * current_scale)))
-            infer_h = max(tile_size, int(round(height * current_scale)))
-            infer_image = image.resize((infer_w, infer_h), Image.Resampling.BILINEAR)
-        else:
-            infer_w, infer_h = width, height
-            infer_image = image
+    for y in y_coords:
+        for x in x_coords:
+            box_x = min(x, max(0, infer_w - tile_size))
+            box_y = min(y, max(0, infer_h - tile_size))
             
-        scale_prob = np.zeros((infer_h, infer_w), dtype=np.float32)
-        scale_weight = np.zeros((infer_h, infer_w), dtype=np.float32)
-
-        x_coords = get_axis_coords(infer_w, tile_size, stride)
-        y_coords = get_axis_coords(infer_h, tile_size, stride)
-        
-        for y in y_coords:
-            for x in x_coords:
-                box_x = min(x, max(0, infer_w - tile_size))
-                box_y = min(y, max(0, infer_h - tile_size))
+            tile = infer_image.crop((box_x, box_y, box_x + tile_size, box_y + tile_size))
+            active_w, active_h = tile.size
+            
+            if active_w < tile_size or active_h < tile_size:
+                padded = Image.new("RGB", (tile_size, tile_size), (0, 0, 0))
+                padded.paste(tile, (0, 0))
+                tile_tensor = transform(padded).unsqueeze(0).to(device)
+            else:
+                tile_tensor = transform(tile).unsqueeze(0).to(device)
                 
-                tile = infer_image.crop((box_x, box_y, box_x + tile_size, box_y + tile_size))
-                active_w, active_h = tile.size
+            total_tiles += 1
+            
+            with torch.no_grad():
+                output = net(tile_tensor)
+                prob = torch.sigmoid(output).squeeze().cpu().numpy()
                 
-                if active_w < tile_size or active_h < tile_size:
-                    padded = Image.new("RGB", (tile_size, tile_size), (0, 0, 0))
-                    padded.paste(tile, (0, 0))
-                    tile_tensor = transform(padded).unsqueeze(0).to(device)
-                else:
-                    tile_tensor = transform(tile).unsqueeze(0).to(device)
-                    
-                total_tiles += 1
+            prob_crop = prob[:active_h, :active_w]
+            weight_crop = hann_weight[:active_h, :active_w]
+            
+            full_prob[box_y:box_y + active_h, box_x:box_x + active_w] += prob_crop * weight_crop
+            full_weight[box_y:box_y + active_h, box_x:box_x + active_w] += weight_crop
+            
+            tile_mask = prob_crop > threshold
+            ratio = np.mean(tile_mask)
+            
+            if ratio > 0.005:
+                tile_np = np.array(tile)
+                tile_overlay = tile_np.copy()
+                tile_overlay[tile_mask] = [251, 191, 36] # Dourado solar
+                tile_overlay_img = Image.blend(tile, Image.fromarray(tile_overlay), alpha=0.65)
                 
-                with torch.no_grad():
-                    output = net(tile_tensor)
-                    prob = torch.sigmoid(output).squeeze().cpu().numpy()
-                    
-                prob_crop = prob[:active_h, :active_w]
-                weight_crop = hann_weight[:active_h, :active_w]
-                
-                scale_prob[box_y:box_y + active_h, box_x:box_x + active_w] += prob_crop * weight_crop
-                scale_weight[box_y:box_y + active_h, box_x:box_x + active_w] += weight_crop
-                
-                tile_mask = prob_crop > threshold
-                ratio = np.mean(tile_mask)
-                
-                if ratio > 0.005 and s_idx == 0:
-                    tile_np = np.array(tile)
-                    tile_overlay = tile_np.copy()
-                    tile_overlay[tile_mask] = [251, 191, 36] # Dourado solar
-                    tile_overlay_img = Image.blend(tile, Image.fromarray(tile_overlay), alpha=0.65)
-                    
-                    candidate_gallery_tiles.append({
-                        "box_x": box_x,
-                        "box_y": box_y,
-                        "width": active_w,
-                        "height": active_h,
-                        "ratio": ratio,
-                        "tile": tile,
-                        "overlay": tile_overlay_img
-                    })
-                    
-        scale_weight[scale_weight == 0] = 1.0
-        scale_prob /= scale_weight
-        if (infer_w, infer_h) != (width, height):
-            scale_prob = cv2.resize(scale_prob, (width, height), interpolation=cv2.INTER_LINEAR)
-        prob_maps.append(scale_prob)
-
-    if len(prob_maps) == 1:
-        full_prob = prob_maps[0]
-    else:
-        full_prob = np.maximum.reduce(prob_maps)
+                candidate_gallery_tiles.append({
+                    "box_x": box_x,
+                    "box_y": box_y,
+                    "width": active_w,
+                    "height": active_h,
+                    "ratio": ratio,
+                    "tile": tile,
+                    "overlay": tile_overlay_img
+                })
                 
     # Deduplicação Espacial da Galeria de Tiles (NMS Espacial)
     # Evita recortes duplicados/redundantes da mesma edificação em imagens pequenas ou com sobreposição de janela
@@ -433,12 +387,20 @@ async def analyze(
         })
         
     tiles_with_detection = len(selected_gallery_tiles)
+                    
+    # Normalização dos pesos de sobreposição
+    full_weight[full_weight == 0] = 1.0
+    full_prob /= full_weight
+    
+    # Se houve re-escala de inferência, mapeia o mapa de probabilidade de volta à resolução original da imagem
+    if (infer_w, infer_h) != (width, height):
+        full_prob = cv2.resize(full_prob, (width, height), interpolation=cv2.INTER_LINEAR)
     
     # 1. Limiarização
     pred_mask = (full_prob > threshold).astype(np.uint8) * 255
     
-    # 2. Pós-Processamento Morfológico (Fechamento com kernel 3x3)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    # 2. Pós-Processamento Morfológico (Fechamento)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     pred_mask = cv2.morphologyEx(pred_mask, cv2.MORPH_CLOSE, kernel)
     
     # 3. Filtro de Área Mínima (Connected Components)
@@ -513,9 +475,7 @@ async def analyze(
             "tilt_angle": tilt_angle,
             "latitude": latitude,
             "tilt_factor": round(tilt_factor, 3),
-            "use_tilt_correction": use_tilt_correction,
-            "detected_gsd": round(detected_gsd, 4) if detected_gsd else None,
-            "gsd_used": round(gsd, 4)
+            "use_tilt_correction": use_tilt_correction
         },
         "results": {
             "total_solar_pixels": total_solar_pixels,
